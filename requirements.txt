@@ -1,0 +1,37 @@
+# Core libraries
+torch
+numpy
+pandas
+
+# HuggingFace ecosystem - let pip resolve compatible versions
+transformers
+tokenizers
+huggingface_hub
+safetensors
+
+# Sentence transformers
+sentence-transformers
+
+# Document processing
+python-docx
+
+# Data science utilities
+scikit-learn
+scipy
+tqdm
+
+# Visualization
+matplotlib
+seaborn
+
+# Jupyter support
+ipykernel
+jupyter
+notebook
+
+# Gradio for interactive testing
+gradio
+
+# Optional performance libraries (uncomment if needed)
+accelerate
+datasets

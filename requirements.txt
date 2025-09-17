@@ -32,6 +32,8 @@ notebook
 # Gradio for interactive testing
 gradio
 
+qdrant-client
+
 # Optional performance libraries (uncomment if needed)
 accelerate
 datasets

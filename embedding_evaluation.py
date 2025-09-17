@@ -19,6 +19,10 @@ import time
 import gc
 from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams, PointStruct
+from dotenv import load_dotenv
+load_dotenv()
 
 def check_version(package_name, expected_version=None):
     """Kiểm tra phiên bản package"""
@@ -97,6 +101,55 @@ def setup_environment():
     
     print("\n🎉 All libraries loaded successfully! Ready for evaluation.")
     return device
+
+def get_qdrant_client():
+    """Khởi tạo Qdrant client từ biến môi trường.
+    """
+    url = os.getenv("QDRANT_URL")
+    api_key = os.getenv("QDRANT_API_KEY")
+
+    try:
+        client = QdrantClient(url=url, api_key=api_key or None, timeout=60.0)
+        print("🗄️  Qdrant connected successfully")
+        return client
+    except Exception as e:
+        print(f"❌ Cannot connect to Qdrant: {e}")
+        raise
+
+def ensure_collection(client: QdrantClient, collection_name: str, vector_size: int):
+    """Tạo mới (recreate) collection với cấu hình cosine và kích thước vector tương ứng."""
+    client.recreate_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE)
+    )
+    print(f"✅ Collection ready: {collection_name} (dim={vector_size})")
+
+def upsert_embeddings_to_qdrant(client: QdrantClient, collection_name: str, embeddings: np.ndarray, law_docs: list):
+    """Upsert toàn bộ embeddings và payload vào Qdrant."""
+    points = []
+    for idx, embedding in enumerate(embeddings):
+        payload = law_docs[idx]
+        points.append(PointStruct(id=idx, vector=embedding.tolist(), payload=payload))
+    client.upsert(collection_name=collection_name, points=points)
+    print(f"✅ Upserted {len(points)} vectors into Qdrant collection '{collection_name}'")
+
+def search_qdrant(client: QdrantClient, collection_name: str, query_embedding: np.ndarray, top_k: int):
+    """Search top-k bằng Qdrant, trả về (indices, scores)."""
+    hits = client.search(
+        collection_name=collection_name,
+        query_vector=query_embedding.tolist(),
+        limit=top_k
+    )
+    top_indices = [hit.id for hit in hits]
+    top_scores = [float(hit.score) for hit in hits]
+    return np.array(top_indices), np.array(top_scores, dtype=float)
+
+def count_collection_points(client: QdrantClient, collection_name: str) -> int:
+    try:
+        ct = client.count(collection_name=collection_name, exact=True)
+        return int(getattr(ct, 'count', 0))
+    except Exception:
+        return 0
 
 # Roman numeral converter
 ROMAN_MAP = {'I':1,'V':5,'X':10,'L':50,'C':100,'D':500,'M':1000}
@@ -908,7 +961,7 @@ def get_benchmark_queries():
     ]
 
 def search_top_k(query_embedding, doc_embeddings, k=15):
-    """Tìm top-k documents tương tự nhất với query"""
+    """Deprecated: để tương thích cũ. Không còn dùng khi đã chuyển sang Qdrant."""
     similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
     top_indices = np.argsort(similarities)[::-1][:k]
     top_scores = similarities[top_indices]
@@ -988,6 +1041,20 @@ def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed
             )
         
         print(f"   ✅ Document embeddings shape: {doc_embeddings.shape}")
+
+        # Lưu embeddings vào Qdrant (collection theo từng model) nếu chưa có đủ vectors
+        client = get_qdrant_client()
+        collection_name = model_info['name'].replace('/', '_')
+        existing = count_collection_points(client, collection_name)
+        if existing >= len(law_docs):
+            print(f"🟡 Collection '{collection_name}' already has {existing} vectors (>= {len(law_docs)}). Skipping re-embed & upsert.")
+        else:
+            print(f"🟠 Collection '{collection_name}' has {existing} vectors. Recreating & upserting {len(law_docs)} vectors...")
+            ensure_collection(client, collection_name, vector_size=doc_embeddings.shape[1])
+            upsert_embeddings_to_qdrant(client, collection_name, doc_embeddings, law_docs)
+        # Giải phóng RAM
+        del doc_embeddings
+        gc.collect()
         
         # Bước 3: Encode queries
         print(f"\n🔍 Step 3: Encoding queries...")
@@ -1017,11 +1084,12 @@ def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed
         for i, query in enumerate(queries):
             print(f"\n   🔍 Query {i+1}/{len(queries)}")
             
-            # Search top-k documents
-            top_indices, top_scores = search_top_k(
-                query_embeddings[i], 
-                doc_embeddings, 
-                k=top_k
+            # Search top-k documents via Qdrant
+            top_indices, top_scores = search_qdrant(
+                client=client,
+                collection_name=collection_name,
+                query_embedding=query_embeddings[i],
+                top_k=top_k
             )
             
             # Calculate metrics
@@ -1409,15 +1477,10 @@ def test_single_query(best_model_name, models_to_evaluate, law_docs, device="cud
         else:
             test_query_embedding = encode_with_transformers([test_query], best_model_info['name'], best_model_info['max_length'], device=device)[0]
         
-        # Encode documents
-        doc_texts = [doc['text'] for doc in law_docs]
-        if best_model_info['type'] == 'sentence_transformers':
-            doc_embeddings = encode_with_sentence_transformers(doc_texts, best_model_info['name'], device=device)
-        else:
-            doc_embeddings = encode_with_transformers(doc_texts, best_model_info['name'], best_model_info['max_length'], device=device)
-        
-        # Search
-        top_indices, top_scores = search_top_k(test_query_embedding, doc_embeddings, k=10)
+        # Search trực tiếp trên Qdrant (documents đã được upsert khi evaluate)
+        client = get_qdrant_client()
+        collection_name = best_model_info['name'].replace('/', '_')
+        top_indices, top_scores = search_qdrant(client, collection_name, test_query_embedding, top_k=10)
         
         # Display results
         display_search_results(test_query, law_docs, top_indices, top_scores, max_display=5)

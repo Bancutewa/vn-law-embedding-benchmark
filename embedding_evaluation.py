@@ -223,7 +223,7 @@ def encode_with_transformers(texts, model_name, max_length=512, batch_size=32, d
     
     # Combine all embeddings
     final_embeddings = np.vstack(all_embeddings)
-    print(f"   ✅ Generated {final_embeddings.shape[0]} embeddings, stored in RAM")
+    print(f"   ✅ Generated {final_embeddings.shape[0]} embeddings")
     
     return final_embeddings
 
@@ -248,7 +248,7 @@ def encode_with_sentence_transformers(texts, model_name, batch_size=32, device="
     del model
     torch.cuda.empty_cache() if device == "cuda" else None
     
-    print(f"   ✅ Generated {embeddings.shape[0]} embeddings, stored in RAM")
+    print(f"   ✅ Generated {embeddings.shape[0]} embeddings")
     
     return embeddings
 
@@ -1022,39 +1022,44 @@ def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed
         doc_texts = [doc['text'] for doc in law_docs]
         print(f"\n📚 Step 1: Prepared {len(doc_texts)} document texts")
         
-        # Bước 2: Encode documents
-        print(f"\n🔨 Step 2: Encoding documents...")
-        if model_info['type'] == 'sentence_transformers':
-            doc_embeddings = encode_with_sentence_transformers(
-                doc_texts, 
-                model_info['name'], 
-                batch_size=16,
-                device=device
-            )
-        else:
-            doc_embeddings = encode_with_transformers(
-                doc_texts, 
-                model_info['name'], 
-                max_length=model_info['max_length'],
-                batch_size=16,
-                device=device
-            )
-        
-        print(f"   ✅ Document embeddings shape: {doc_embeddings.shape}")
-
-        # Lưu embeddings vào Qdrant (collection theo từng model) nếu chưa có đủ vectors
+        # Bước 2: Kiểm tra Qdrant collection trước
         client = get_qdrant_client()
         collection_name = model_info['name'].replace('/', '_')
         existing = count_collection_points(client, collection_name)
+        
         if existing >= len(law_docs):
-            print(f"🟡 Collection '{collection_name}' already has {existing} vectors (>= {len(law_docs)}). Skipping re-embed & upsert.")
+            print(f"🟡 Collection '{collection_name}' already has {existing} vectors (>= {len(law_docs)}). Skipping document encoding.")
         else:
-            print(f"🟠 Collection '{collection_name}' has {existing} vectors. Recreating & upserting {len(law_docs)} vectors...")
+            print(f"🟠 Collection '{collection_name}' has {existing} vectors. Need to encode and upsert {len(law_docs)} vectors...")
+            
+            # Bước 2a: Encode documents
+            print(f"\n🔨 Step 2a: Encoding documents...")
+            if model_info['type'] == 'sentence_transformers':
+                doc_embeddings = encode_with_sentence_transformers(
+                    doc_texts, 
+                    model_info['name'], 
+                    batch_size=16,
+                    device=device
+                )
+            else:
+                doc_embeddings = encode_with_transformers(
+                    doc_texts, 
+                    model_info['name'], 
+                    max_length=model_info['max_length'],
+                    batch_size=16,
+                    device=device
+                )
+            
+            print(f"   ✅ Document embeddings shape: {doc_embeddings.shape}")
+            
+            # Bước 2b: Lưu vào Qdrant
+            print(f"\n💾 Step 2b: Storing embeddings in Qdrant...")
             ensure_collection(client, collection_name, vector_size=doc_embeddings.shape[1])
             upsert_embeddings_to_qdrant(client, collection_name, doc_embeddings, law_docs)
-        # Giải phóng RAM
-        del doc_embeddings
-        gc.collect()
+            
+            # Giải phóng RAM
+            del doc_embeddings
+            gc.collect()
         
         # Bước 3: Encode queries
         print(f"\n🔍 Step 3: Encoding queries...")
@@ -1254,7 +1259,7 @@ def generate_final_report(evaluation_results, law_docs, benchmark_queries):
     print(f"   📚 Law Documents: {len(law_docs)} chunks from Luật Hôn nhân và Gia đình")
     print(f"   ❓ Benchmark Queries: {len(benchmark_queries)} questions")
     print(f"   🔍 Evaluation Method: Top-15 retrieval with cosine similarity")
-    print(f"   💾 Storage: RAM-based (no vector database)")
+    print(f"   💾 Storage: Qdrant vector database")
     
     print(f"\n🏆 RANKING BY PERFORMANCE:")
     print(f"   Metric: Average Max Score across all queries")
@@ -1524,7 +1529,7 @@ def main():
         print()
     
     print(f"🎯 All models support ≥512 tokens as required!")
-    print(f"💾 Embeddings will be stored in RAM (not vector database)")
+    print(f"💾 Embeddings will be stored in Qdrant vector database")
     
     print(f"\nPrepared {len(benchmark_queries)} benchmark queries")
     print("Sample queries:")

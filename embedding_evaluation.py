@@ -109,7 +109,12 @@ def get_qdrant_client():
     api_key = os.getenv("QDRANT_API_KEY")
 
     try:
-        client = QdrantClient(url=url, api_key=api_key or None, timeout=60.0)
+        client = QdrantClient(
+            url=url, 
+            api_key=api_key or None, 
+            timeout=300.0,
+            grpc_port=6334,
+        )
         print("🗄️  Qdrant connected successfully")
         return client
     except Exception as e:
@@ -124,14 +129,37 @@ def ensure_collection(client: QdrantClient, collection_name: str, vector_size: i
     )
     print(f"✅ Collection ready: {collection_name} (dim={vector_size})")
 
-def upsert_embeddings_to_qdrant(client: QdrantClient, collection_name: str, embeddings: np.ndarray, law_docs: list):
-    """Upsert toàn bộ embeddings và payload vào Qdrant."""
-    points = []
-    for idx, embedding in enumerate(embeddings):
-        payload = law_docs[idx]
-        points.append(PointStruct(id=idx, vector=embedding.tolist(), payload=payload))
-    client.upsert(collection_name=collection_name, points=points)
-    print(f"✅ Upserted {len(points)} vectors into Qdrant collection '{collection_name}'")
+
+def upsert_embeddings_to_qdrant(client: QdrantClient, collection_name: str, embeddings: np.ndarray, law_docs: list, batch_size=100):
+    """Upsert toàn bộ embeddings và payload vào Qdrant theo batch nhỏ."""
+    total_points = len(embeddings)
+    print(f"📤 Upserting {total_points} vectors in batches of {batch_size}...")
+    
+    for i in range(0, total_points, batch_size):
+        batch_end = min(i + batch_size, total_points)
+        batch_points = []
+        
+        for idx in range(i, batch_end):
+            payload = law_docs[idx]
+            batch_points.append(PointStruct(id=idx, vector=embeddings[idx].tolist(), payload=payload))
+        
+        # Retry mechanism
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                client.upsert(collection_name=collection_name, points=batch_points)
+                print(f"   ✅ Batch {i//batch_size + 1}: upserted {len(batch_points)} vectors ({batch_end}/{total_points})")
+                break
+            except Exception as e:
+                if retry < max_retries - 1:
+                    print(f"   ⚠️ Batch {i//batch_size + 1} failed (attempt {retry + 1}/{max_retries}): {e}")
+                    print(f"   🔄 Retrying in 2 seconds...")
+                    time.sleep(2)
+                else:
+                    print(f"   ❌ Batch {i//batch_size + 1} failed after {max_retries} attempts: {e}")
+                    raise
+    
+    print(f"✅ Successfully upserted {total_points} vectors into Qdrant collection '{collection_name}'")
 
 def search_qdrant(client: QdrantClient, collection_name: str, query_embedding: np.ndarray, top_k: int):
     """Search top-k bằng Qdrant, trả về (indices, scores)."""
@@ -253,14 +281,32 @@ def encode_with_sentence_transformers(texts, model_name, batch_size=32, device="
     return embeddings
 
 def read_docx(file_path):
-    """Đọc file docx và trả về text"""
-    from docx import Document
-    
+    """Đọc file docx và trả về text (hỗ trợ cả .doc và .docx)"""
     print(f"   Reading file: {file_path}")
-    doc = Document(file_path)
-    text = "\n".join((p.text or "").strip() for p in doc.paragraphs)
-    print(f"   ✅ Successfully read {len(text):,} characters")
-    return text
+    
+    try:
+        # Thử đọc bằng python-docx trước (cho file .docx thực sự)
+        from docx import Document
+        doc = Document(file_path)
+        text = "\n".join((p.text or "").strip() for p in doc.paragraphs)
+        print(f"   ✅ Successfully read {len(text):,} characters using python-docx")
+        return text
+    except Exception as e1:
+        print(f"   ⚠️ python-docx failed: {e1}")
+        
+        # Nếu file có extension .docx nhưng thực tế là .doc, thử dùng docx2txt
+        try:
+            import docx2txt
+            text = docx2txt.process(file_path)
+            if text and len(text.strip()) > 0:
+                print(f"   ✅ Successfully read {len(text):,} characters using docx2txt")
+                return text
+            else:
+                print(f"   ❌ docx2txt returned empty content")
+                return ""
+        except Exception as e2:
+            print(f"   ❌ docx2txt also failed: {e2}")
+            return ""
 
 def normalize_lines(text: str):
     """Chuẩn hóa các dòng text - loại bỏ whitespace thừa"""
@@ -394,149 +440,45 @@ def call_gemini_review(payload: dict, api_key: str = None) -> dict:
             "notes": raw[:2000]
         }
 
-def advanced_chunk_law_document(text, max_length=600):
-    """Chia văn bản luật thành chunks theo logic CHÍNH XÁC"""
-    print("   🔍 2-Pass advanced parsing with full validation...")
+def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
+    """Chia văn bản luật thành chunks theo định dạng hn2014_chunks.json"""
+    print("   🔍 Chunking law document with strict parsing...")
+
     lines = normalize_lines(text)
-    
+
     # Regex patterns
-    ARTICLE_RE = re.compile(r'^Điều\s+(\d+)\s*[\.:]*\s*(.*)$', re.UNICODE)
-    CHAPTER_RE = re.compile(r'^Chương\s+([IVXLCDM]+)\s*(.*)$', re.UNICODE|re.IGNORECASE)
-    SECTION_RE = re.compile(r'^Mục\s+(\d+)\s*[:\-]?\s*(.*)$', re.UNICODE|re.IGNORECASE)
+    ARTICLE_RE = re.compile(r'^Điều\s+(\d+)\s*[\.:]?\s*(.*)$', re.UNICODE)
+    CHAPTER_RE = re.compile(r'^Chương\s+([IVXLCDM]+)\s*(.*)$', re.UNICODE | re.IGNORECASE)
+    SECTION_RE = re.compile(r'^Mục\s+(\d+)\s*[:\-]?\s*(.*)$', re.UNICODE | re.IGNORECASE)
     CLAUSE_RE = re.compile(r'^\s*(\d+)\.\s*(.*)$', re.UNICODE)
     POINT_RE = re.compile(r'^\s*([a-zA-ZđĐ])\)\s+(.*)$', re.UNICODE)
 
-    # Heuristic for article-level intro that applies to all clauses
-    INTRO_CUE_PAT = re.compile(r'(sau đây|bao gồm|gồm các|quy định như sau)\s*:\s*$', re.IGNORECASE | re.UNICODE)
-
-    def is_intro_text_for_clauses(text_intro: str) -> bool:
-        if not text_intro:
-            return False
-        t = text_intro.strip()
-        if t.endswith(':'):
-            return True
-        if INTRO_CUE_PAT.search(t):
-            return True
-        return False
-
-    def build_article_header(article_no: int, article_title: str):
-        t = (article_title or "").strip()
-        return f"Điều {article_no}" + (f" {t}" if t else "")
-    
-    # Pre-scan
-    def prescan(lines):
-        chapters_nums, articles_nums = [], []
-        chapters_labels = []
-        for line in lines:
-            if not line: continue
-            m_ch = CHAPTER_RE.match(line)
-            if m_ch:
-                n = roman_to_int(m_ch.group(1))
-                if n:
-                    chapters_nums.append(n)
-                    title = (m_ch.group(2) or "").strip()
-                    chapters_labels.append(f"Chương {m_ch.group(1).strip()}" + (f" – {title}" if title else ""))
-                continue
-            m_art = ARTICLE_RE.match(line)
-            if m_art:
-                num = int(m_art.group(1))
-                articles_nums.append(num)
-                continue
-        return chapters_nums, articles_nums, chapters_labels
-    
-    # Flush helpers
-    def flush_article_intro(chunks, article_no, article_title, article_intro_buf, chapter, section, stats):
-        content = (article_intro_buf or "").strip()
-        if not content: return
-        title_line = f"Điều {article_no}. {article_title}".strip() if article_title else f"Điều {article_no}"
-        chunks.append({
-            "content": f"{title_line}\n{content}",
-            "title": f"Điều {article_no} - {article_title}" if article_title else f"Điều {article_no}",
-            "type": "article_intro",
-            "metadata": {
-                "chapter": chapter,
-                "section": section,
-                "article_no": article_no,
-                "article_title": article_title,
-                "exact_citation": f"Điều {article_no}"
-            }
-        })
-        stats["article_intro"] += 1
-    
-    def flush_clause(chunks, article_no, article_title, clause_no, content, chapter, section, stats, clause_intro=None):
-        content = (content or "").strip()
-        if not content:
-            return
-        art_hdr = build_article_header(article_no, article_title)
-        if clause_intro:
-            intro = clause_intro.rstrip().rstrip(':') + ':'
-            full_content = f"{art_hdr} Khoản {clause_no} {intro}\n{content}"
-        else:
-            full_content = f"{art_hdr} Khoản {clause_no}. {content}"
-        metadata = {
-            "chapter": chapter,
-            "section": section,
-            "article_no": article_no,
-            "article_title": article_title,
-            "clause_no": clause_no,
-            "exact_citation": f"Điều {article_no} khoản {clause_no}"
-        }
-        if clause_intro:
-            metadata["clause_intro"] = clause_intro
-        chunks.append({
-            "content": full_content,
-            "title": f"Điều {article_no}, Khoản {clause_no}",
-            "type": "clause",
-            "metadata": metadata
-        })
-        stats["clauses"] += 1
-    
-    def flush_point(chunks, article_no, article_title, clause_no, letter, content, chapter, section, stats, clause_intro=None):
-        content = (content or "").strip()
-        if not content:
-            return
-        letter = letter.lower()
-        art_hdr = build_article_header(article_no, article_title)
-        if clause_intro:
-            intro = clause_intro.rstrip().rstrip(':')
-            full_content = f"{art_hdr} Khoản {clause_no} {intro}, điểm {letter})\n{content}"
-        else:
-            full_content = f"{art_hdr} Khoản {clause_no}, điểm {letter}) {content}"
-        metadata = {
-            "chapter": chapter,
-            "section": section,
-            "article_no": article_no,
-            "article_title": article_title,
-            "clause_no": clause_no,
-            "point_letter": letter,
-            "exact_citation": f"Điều {article_no} khoản {clause_no} điểm {letter})"
-        }
-        if clause_intro:
-            metadata["clause_intro"] = clause_intro
-        chunks.append({
-            "content": full_content,
-            "title": f"Điều {article_no}, Khoản {clause_no}, Điểm {letter})",
-            "type": "point",
-            "metadata": metadata
-        })
-        stats["points"] += 1
-    
-    print(f"   📄 Processing {len(lines):,} lines...")
-    
     # PASS 1: Pre-scan
-    print("   🔍 Pass 1: Pre-scanning structure...")
-    chapters_nums, articles_nums, chapters_labels = prescan(lines)
+    chapters_nums, articles_nums = [], []
+    chapters_labels, article_titles_seen = [], []
+
+    for line in lines:
+        if not line:
+            continue
+        m_ch = CHAPTER_RE.match(line)
+        if m_ch:
+            n = roman_to_int(m_ch.group(1))
+            if n:
+                chapters_nums.append(n)
+                title = (m_ch.group(2) or "").strip()
+                chapters_labels.append(
+                    f"Chương {m_ch.group(1).strip()}" + (f" – {title}" if title else "")
+                )
+            continue
+        m_art = ARTICLE_RE.match(line)
+        if m_art:
+            articles_nums.append(int(m_art.group(1)))
+            continue
+
     chapters_set, articles_set = set(chapters_nums), set(articles_nums)
-    
-    print(f"      - Pre-scan found {len(chapters_nums)} chapters: {chapters_nums[:10]}{'...' if len(chapters_nums)>10 else ''}")
-    print(f"      - Pre-scan found {len(articles_nums)} articles: {articles_nums[:20]}{'...' if len(articles_nums)>20 else ''}")
-    
-    # PASS 2: Strict chunking
-    print("   🔍 Pass 2: Strict parsing with sequence validation...")
+
+    # PASS 2: Chunking
     chunks = []
-    stats = {"articles": 0, "article_intro": 0, "clauses": 0, "points": 0}
-    warnings = []
-    
     chapter_label = None
     section_label = None
     article_no = None
@@ -544,45 +486,131 @@ def advanced_chunk_law_document(text, max_length=600):
     expecting_article_title = False
     article_intro_buf = ""
     article_has_any_chunk = False
-    
     clause_no = None
     clause_buf = ""
     clause_intro_current = None
-    # Article-level intro to inject into all clauses of the article
-    article_clause_intro_current = None
     in_points = False
     point_letter = None
     point_buf = ""
-    
     expected_chapter = None
     expected_article = None
     seeking_article = False
-    
+
+    def build_article_header(article_no: int, article_title: str) -> str:
+        t = (article_title or "").strip()
+        return f"Điều {article_no}" + (f" {t}" if t else "")
+
+    def flush_article_intro():
+        nonlocal article_intro_buf, article_has_any_chunk
+        content = article_intro_buf.strip()
+        if not content:
+            return
+        cid = f"{law_id}-D{article_no}"
+        exact = f"Điều {article_no}"
+        meta = {
+            "law_no": law_no,
+            "law_title": law_title,
+            "law_id": law_id,
+            "chapter": chapter_label,
+            "section": section_label,
+            "article_no": article_no,
+            "article_title": article_title,
+            "exact_citation": exact
+        }
+        title_line = f"Điều {article_no}. {article_title}".strip() if article_title else f"Điều {article_no}"
+        chunks.append({
+            "id": cid,
+            "content": f"{title_line}\n{content}",
+            "metadata": meta
+        })
+        article_intro_buf = ""
+        article_has_any_chunk = True
+
+    def flush_clause():
+        nonlocal clause_buf
+        content = clause_buf.strip()
+        if not content:
+            return
+        cid = f"{law_id}-D{article_no}-K{clause_no}"
+        exact = f"Điều {article_no} khoản {clause_no}"
+        meta = {
+            "law_no": law_no,
+            "law_title": law_title,
+            "law_id": law_id,
+            "chapter": chapter_label,
+            "section": section_label,
+            "article_no": article_no,
+            "article_title": article_title,
+            "clause_no": clause_no,
+            "exact_citation": exact
+        }
+        art_hdr = build_article_header(article_no, article_title)
+        full_content = f"{art_hdr} Khoản {clause_no}. {content}"
+        chunks.append({
+            "id": cid,
+            "content": full_content,
+            "metadata": meta
+        })
+
+    def flush_point():
+        nonlocal point_buf
+        content = point_buf.strip()
+        if not content:
+            return
+        letter = point_letter.lower()
+        cid = f"{law_id}-D{article_no}-K{clause_no}-{letter}"
+        exact = f"Điều {article_no} khoản {clause_no} điểm {letter})"
+        meta = {
+            "law_no": law_no,
+            "law_title": law_title,
+            "law_id": law_id,
+            "chapter": chapter_label,
+            "section": section_label,
+            "article_no": article_no,
+            "article_title": article_title,
+            "clause_no": clause_no,
+            "point_letter": letter,
+            "exact_citation": exact
+        }
+        if clause_intro_current:
+            meta["clause_intro"] = clause_intro_current
+
+        art_hdr = build_article_header(article_no, article_title)
+        if clause_intro_current:
+            intro = clause_intro_current.rstrip().rstrip(':')
+            full_content = f"{art_hdr} Khoản {clause_no} {intro}, điểm {letter}): {content}"
+        else:
+            full_content = f"{art_hdr} Khoản {clause_no}, điểm {letter}) {content}"
+
+        chunks.append({
+            "id": cid,
+            "content": full_content,
+            "metadata": meta
+        })
+
     def close_clause():
         nonlocal clause_no, clause_buf, in_points, point_letter, point_buf, article_has_any_chunk, clause_intro_current
-        if clause_no is None: return
+        if clause_no is None:
+            return
         if in_points and point_letter:
-            flush_point(chunks, article_no, article_title, clause_no, point_letter,
-                        point_buf, chapter_label, section_label, stats, clause_intro_current)
+            flush_point()
         elif clause_buf.strip():
-            flush_clause(chunks, article_no, article_title, clause_no, clause_buf,
-                         chapter_label, section_label, stats, article_clause_intro_current)
+            flush_clause()
         article_has_any_chunk = True
         clause_no, clause_buf, in_points, point_letter, point_buf = None, "", False, None, ""
         clause_intro_current = None
-    
+
     def close_article_if_needed():
         nonlocal article_intro_buf, article_has_any_chunk
-        if (not article_has_any_chunk) and article_intro_buf.strip():
-            flush_article_intro(chunks, article_no, article_title, article_intro_buf,
-                                chapter_label, section_label, stats)
-        article_intro_buf = ""
-        article_has_any_chunk = False
-    
-    for ln_idx, line in enumerate(lines, start=1):
-        if not line: continue
-        
-        # Seeking article logic
+        if not article_has_any_chunk and article_intro_buf.strip():
+            flush_article_intro()
+
+    print(f"   📄 Processing {len(lines):,} lines...")
+
+    for line in lines:
+        if not line:
+            continue
+
         if seeking_article:
             m_art_seek = ARTICLE_RE.match(line)
             if m_art_seek:
@@ -594,28 +622,26 @@ def advanced_chunk_law_document(text, max_length=600):
                         close_article_if_needed()
                     article_no = a_no
                     article_title = (m_art_seek.group(2) or "").strip()
-                    stats["articles"] += 1
                     if not article_title:
                         expecting_article_title = True
                     expected_article = a_no + 1
-                    clause_no = None; clause_buf = ""; in_points = False; point_letter = None; point_buf = ""
+                    clause_no = None
+                    clause_buf = ""
+                    in_points = False
+                    point_letter = None
+                    point_buf = ""
                     clause_intro_current = None
-                    article_clause_intro_current = None
-                    continue
-                else:
-                    continue
-            m_ch_seek = CHAPTER_RE.match(line)
-            if m_ch_seek:
-                break
+                continue
             continue
-        
-        # Expecting article title on next line
+
         if expecting_article_title:
-            if not (CHAPTER_RE.match(line) or SECTION_RE.match(line) or CLAUSE_RE.match(line) or POINT_RE.match(line) or ARTICLE_RE.match(line)):
-                article_title = line; expecting_article_title = False; continue
+            if not any(regex.match(line) for regex in [CHAPTER_RE, SECTION_RE, CLAUSE_RE, POINT_RE, ARTICLE_RE]):
+                article_title = line
+                expecting_article_title = False
+                continue
             else:
                 expecting_article_title = False
-        
+
         # CHƯƠNG
         m_ch = CHAPTER_RE.match(line)
         if m_ch:
@@ -626,33 +652,27 @@ def advanced_chunk_law_document(text, max_length=600):
             article_title = ""
             article_intro_buf = ""
             expecting_article_title = False
-            article_clause_intro_current = None
-            
+
             roman = m_ch.group(1).strip()
             ch_num = roman_to_int(roman) or 0
             ch_title = (m_ch.group(2) or "").strip()
             lbl = f"Chương {roman}" + (f" – {ch_title}" if ch_title else "")
-            
+
             if expected_chapter is None:
                 expected_chapter = ch_num + 1
+            elif ch_num == expected_chapter:
+                expected_chapter = ch_num + 1
+            elif ch_num > expected_chapter:
+                if expected_chapter not in chapters_set:
+                    break
+                continue
             else:
-                if ch_num == expected_chapter:
-                    expected_chapter = ch_num + 1
-                elif ch_num > expected_chapter:
-                    if expected_chapter not in chapters_set:
-                        warnings.append(f"Missing Chapter {expected_chapter} - stopping at {lbl}")
-                        break
-                    else:
-                        warnings.append(f"Skipping {lbl} - waiting for Chapter {expected_chapter}")
-                        continue
-                else:
-                    warnings.append(f"Skipping {lbl} - backward chapter number")
-                    continue
-            
+                continue
+
             chapter_label = lbl
             section_label = None
             continue
-        
+
         # MỤC
         m_sec = SECTION_RE.match(line)
         if m_sec:
@@ -663,84 +683,86 @@ def advanced_chunk_law_document(text, max_length=600):
             article_title = ""
             article_intro_buf = ""
             expecting_article_title = False
-            article_clause_intro_current = None
-            
+
             sec_no = m_sec.group(1).strip()
             sec_title = (m_sec.group(2) or "").strip()
             section_label = f"Mục {sec_no}" + (f" – {sec_title}" if sec_title else "")
             continue
-        
+
         # ĐIỀU
         m_art = ARTICLE_RE.match(line)
         if m_art:
             a_no = int(m_art.group(1))
             a_title = (m_art.group(2) or "").strip()
-            
+
             if expected_article is None:
                 expected_article = a_no + 1
                 close_clause()
-                if article_no is not None: close_article_if_needed()
-                article_no = a_no; article_title = a_title; stats["articles"] += 1
-                if not article_title: expecting_article_title = True
-                clause_no = None; clause_buf = ""; in_points = False; point_letter = None; point_buf = ""
+                if article_no is not None:
+                    close_article_if_needed()
+                article_no = a_no
+                article_title = a_title
+                if not article_title:
+                    expecting_article_title = True
+                clause_no = None
+                clause_buf = ""
+                in_points = False
+                point_letter = None
+                point_buf = ""
                 clause_intro_current = None
-                article_clause_intro_current = None
                 continue
-            else:
-                if a_no == expected_article:
-                    expected_article = a_no + 1
-                    close_clause()
-                    if article_no is not None: close_article_if_needed()
-                    article_no = a_no; article_title = a_title; stats["articles"] += 1
-                    if not article_title: expecting_article_title = True
-                    clause_no = None; clause_buf = ""; in_points = False; point_letter = None; point_buf = ""
-                    clause_intro_current = None
-                    article_clause_intro_current = None
-                    continue
-                elif a_no > expected_article:
-                    if expected_article not in articles_set:
-                        warnings.append(f"Missing Article {expected_article} - stopping at Article {a_no}")
-                        break
-                    else:
-                        warnings.append(f"Skipping Article {a_no} - waiting for Article {expected_article}")
-                        seeking_article = True
-                        continue
+            elif a_no == expected_article:
+                expected_article = a_no + 1
+                close_clause()
+                if article_no is not None:
+                    close_article_if_needed()
+                article_no = a_no
+                article_title = a_title
+                if not article_title:
+                    expecting_article_title = True
+                clause_no = None
+                clause_buf = ""
+                in_points = False
+                point_letter = None
+                point_buf = ""
+                clause_intro_current = None
+                continue
+            elif a_no > expected_article:
+                if expected_article not in articles_set:
+                    break
                 else:
-                    warnings.append(f"Skipping Article {a_no} - backward article number")
+                    seeking_article = True
                     continue
-        
-        # Skip if not in any article
+            else:
+                continue
+
         if article_no is None:
             continue
-        
+
         # KHOẢN
         m_k = CLAUSE_RE.match(line)
         if m_k and m_k.group(1).isdigit():
-            if article_intro_buf.strip() and is_intro_text_for_clauses(article_intro_buf):
-                # Keep article intro to inject into all clauses
-                article_clause_intro_current = article_intro_buf.strip()
-                article_intro_buf = ""
-            elif article_intro_buf.strip():
-                # Flush as a standalone article intro chunk
-                flush_article_intro(chunks, article_no, article_title, article_intro_buf,
-                                    chapter_label, section_label, stats)
-                article_intro_buf = ""; article_has_any_chunk = True
+            if article_intro_buf.strip():
+                flush_article_intro()
+                article_has_any_chunk = True
             close_clause()
             clause_no = int(m_k.group(1))
             clause_buf = (m_k.group(2) or "").strip()
-            in_points = False; point_letter = None; point_buf = ""
+            in_points = False
+            point_letter = None
+            point_buf = ""
             clause_intro_current = None
             continue
-        
+
         # ĐIỂM
         m_p = POINT_RE.match(line)
         if m_p and clause_no is not None:
             letter = m_p.group(1).lower()
             text = (m_p.group(2) or "").strip()
-            
+
             if not in_points:
                 if letter != 'a':
-                    clause_buf += ("\\n" if clause_buf else "") + f"{letter}) {text}"
+                    clause_buf += ("\n" if clause_buf else "") + f"{letter}) {text}"
                     continue
                 clause_intro_current = clause_buf.strip() if clause_buf.strip() else None
                 clause_buf = ""
@@ -748,163 +770,354 @@ def advanced_chunk_law_document(text, max_length=600):
                 point_letter = letter
                 point_buf = text
                 continue
-            
+
             if point_letter:
-                flush_point(chunks, article_no, article_title, clause_no, point_letter,
-                            point_buf, chapter_label, section_label, stats, clause_intro_current)
+                flush_point()
             in_points = True
             point_letter = letter
             point_buf = text
             continue
-        
+
         # Nội dung kéo dài
         if clause_no is not None:
             if in_points and point_letter:
-                point_buf += ("\\n" if point_buf else "") + line
+                point_buf += ("\n" if point_buf else "") + line
             else:
-                clause_buf += ("\\n" if clause_buf else "") + line
+                clause_buf += ("\n" if clause_buf else "") + line
         else:
-            article_intro_buf += ("\\n" if article_intro_buf else "") + line
-    
-    # Kết thúc file
+            article_intro_buf += ("\n" if article_intro_buf else "") + line
+
+    # Kết thúc
     close_clause()
     if article_no is not None:
         close_article_if_needed()
-    
-    # Filter valid chunks
-    final_chunks = []
+
+    # Filter chunks
+    valid_chunks = []
     for chunk in chunks:
         content = chunk['content'].strip()
         if len(content) > 50:
-            final_chunks.append(chunk)
-    
-    print(f"   📊 PROPER advanced parsing results:")
-    print(f"      - Processed {stats['articles']} articles (strict sequence)")
-    print(f"      - Created {stats['article_intro']} article intros")
-    print(f"      - Created {stats['clauses']} clauses")
-    print(f"      - Created {stats['points']} points (with clause intro injection)")
-    print(f"      - Final valid chunks: {len(final_chunks)}")
-    
-    if warnings:
-        print(f"   ⚠️  Warnings: {len(warnings)} issues detected")
-        for w in warnings[:3]:
-            print(f"      - {w}")
-    
-    return final_chunks
+            valid_chunks.append(chunk)
 
-def load_law_documents():
-    """Load và chunk văn bản luật"""
-    print("📚 Loading law document from LuatHonNhan folder...")
-    
-    law_file_path = "LuatHonNhan/luat_hon_nhan_va_gia_dinh.docx"
-    if os.path.exists(law_file_path):
-        print(f"✅ Found law file: {law_file_path}")
-        
-        # Bước 1: Đọc file docx
-        print("\n📖 Step 1: Reading DOCX file...")
-        law_text = read_docx(law_file_path)
-        
-        # Bước 2: Chia thành chunks
-        print("\n🔨 Step 2: PROPER Advanced chunking with 2-pass validation...")
-        law_chunks = advanced_chunk_law_document(law_text, max_length=600)
+    print(f"   ✅ Created {len(valid_chunks)} chunks")
+    return valid_chunks
 
-        # Bước 2.1: (Tuỳ chọn) Thẩm định bằng Gemini
-        if _env_truthy(os.getenv("CHUNK_AI_REVIEW", "false")):
-            print("\n🤖 AI Review: Calling Gemini to validate chunking...")
-            # Xây dựng summary nhẹ từ chunks (không có cảnh báo nội bộ)
-            try:
-                chapters_seen = []
-                seen_chapter_set = set()
-                citations = []
-                type_counts_tmp = {"article_intro": 0, "clause": 0, "point": 0}
-                seen_articles = set()
-                for c in law_chunks:
-                    md = c.get("metadata", {})
-                    ch = md.get("chapter")
-                    if ch and ch not in seen_chapter_set:
-                        seen_chapter_set.add(ch)
-                        chapters_seen.append(ch)
-                    cite = md.get("exact_citation")
-                    if cite:
-                        citations.append(cite)
-                    t = c.get("type")
-                    if t in type_counts_tmp:
-                        type_counts_tmp[t] += 1
-                    a_no = md.get("article_no")
-                    if a_no is not None:
-                        seen_articles.add(a_no)
+def generate_law_id(file_name: str) -> str:
+    """Tự động sinh law_id từ tên file"""
+    # Loại bỏ extension và chuẩn hóa
+    name = file_name.replace('.docx', '').replace('.doc', '').strip()
 
-                summary = {
-                    "chapters_seen": chapters_seen,
-                    "articles": len(seen_articles),
-                    "article_intro": type_counts_tmp.get("article_intro", 0),
-                    "clauses": type_counts_tmp.get("clauses", 0) or type_counts_tmp.get("clause", 0),
-                    "points": type_counts_tmp.get("points", 0) or type_counts_tmp.get("point", 0),
-                    "citations": citations,
-                    "warnings": [],
-                    "halted_reason": None,
-                    "total_chunks": len(law_chunks)
-                }
+    # Từ điển mapping cho các loại luật phổ biến
+    law_mappings = {
+        'kinh doanh bất động sản': 'LKBDS',
+        'nhà ở': 'LNHAO',
+        'đất đai': 'LDATDAI',
+        'đầu tư': 'LDAUTU',
+        'đầu tư công': 'LDAUTUCONG',
+        'đầu tư theo phương thức đối tác công tư': 'LDAUTUPPPCT',
+        'thuế sử dụng đất nông nghiệp': 'LTSDDNONGNGHIEP',
+        'thuế sử dụng đất phi nông nghiệp': 'LTSDDPHINONGNGHIEP',
+        'xây dựng': 'LXAYDUNG',
+        'hôn nhân và gia đình': 'LHNVDG',
+    }
 
-                excerpts_len = int(os.getenv("CHUNK_REVIEW_EXCERPTS", "8000") or 8000)
-                payload = build_review_payload(law_chunks, summary, law_text, sample_excerpts_chars=max(2000, excerpts_len))
-                review = call_gemini_review(payload)
-                status = review.get("status", "issues_found")
-                confidence = review.get("confidence", 0.0)
-                issues = review.get("issues", []) or []
-                notes = review.get("notes", "")
-                print(f"- Gemini status: {status} | confidence: {confidence:.2f}")
-                if notes:
-                    print(f"- Notes: {notes[:4000]}")
-                if issues:
-                    print("\n===== Gemini Issues =====")
-                    for i, it in enumerate(issues[:20], 1):
-                        print(f"{i:02d}. [{it.get('severity','?')}] ({it.get('category','other')}) {it.get('citation') or it.get('id') or ''}")
-                        print(f"    - {it.get('message','(no message)')}")
-                        if it.get('suggestion'):
-                            print(f"    → Suggestion: {it['suggestion']}")
+    # Chuẩn hóa tên để matching
+    name_lower = name.lower()
 
-                if _env_truthy(os.getenv("CHUNK_STRICT_OK_ONLY", "false")) and status != "ok":
-                    print("❌ CHUNK_STRICT_OK_ONLY is set and Gemini did not return 'ok'. Aborting load.")
-                    return []
-            except Exception as e:
-                print(f"⚠️ Gemini review failed: {e}")
-                if _env_truthy(os.getenv("CHUNK_STRICT_OK_ONLY", "false")):
-                    return []
-        
-        # Bước 3: Chuẩn bị dữ liệu cho đánh giá
-        print("\n🗂️ Step 3: Preparing data for evaluation...")
-        law_docs = []
-        for i, chunk in enumerate(law_chunks):
-            law_docs.append({
-                'id': i,
-                'title': chunk['title'],
-                'text': chunk['content'],
-                'length': len(chunk['content']),
-                'type': chunk['type'],
-                'metadata': chunk.get('metadata', {})
-            })
-        
-        print(f"   ✅ Processed {len(law_docs)} law document chunks")
-        print(f"   📊 Average chunk length: {np.mean([doc['length'] for doc in law_docs]):.0f} characters")
-        
-        # Thống kê theo loại
-        type_counts = {}
-        for doc in law_docs:
-            doc_type = doc['type']
-            type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
-        
-        print(f"\n📈 Chunk distribution by type:")
-        for chunk_type, count in type_counts.items():
-            print(f"   - {chunk_type}: {count} chunks")
-        
-        print(f"\n✅ Successfully loaded {len(law_docs)} law document chunks!")
-        return law_docs
-        
-    else:
-        print(f"❌ File {law_file_path} not found!")
-        print(f"   Expected path: {os.path.abspath(law_file_path)}")
+    # Tìm mapping phù hợp
+    for key, value in law_mappings.items():
+        if key in name_lower:
+            return value
+
+    # Xử lý các trường hợp đặc biệt
+    if 'luật số' in name_lower and 'qh' in name_lower:
+        # Luật số XX_YYYY_QHZZ -> LXAYDUNG (luật xây dựng)
+        if 'xây dựng' in name_lower:
+            return 'LXAYDUNG'
+        # Các luật khác có thể thêm mapping
+
+    if 'văn bản hợp nhất' in name_lower:
+        # Văn bản hợp nhất Luật XXX -> LDAUTU
+        if 'đầu tư' in name_lower:
+            return 'LDAUTU'
+
+    # Xử lý các file VBHN (Văn bản hợp nhất) có thể là luật xây dựng
+    if name_lower.startswith('vbhn') or 'vbhn' in name_lower:
+        # Thường là luật xây dựng
+        return 'LXAYDUNG'
+
+    # Xử lý luật số không có từ khóa rõ ràng
+    if 'luật số' in name_lower:
+        # Có thể là luật xây dựng nếu không match gì khác
+        return 'LXAYDUNG'
+
+    # Nếu không tìm thấy, tạo ID từ chữ cái đầu của các từ quan trọng
+    words = name.split()
+
+    # Lọc bỏ các từ không quan trọng
+    stop_words = {'số', 'và', 'theo', 'phương', 'thức', 'đối', 'tác', 'công', 'tư', 'luật', 'văn', 'bản', 'hợp', 'nhất', 'năm', 'qđ', 'tt', 'bh', 'vbh', 'vbhn', 'vpqh'}
+
+    important_words = []
+    for word in words:
+        word_lower = word.lower()
+        # Bỏ qua số, từ dừng, và từ quá ngắn
+        if len(word) <= 1 or word_lower in stop_words or word.isdigit():
+            continue
+        # Bỏ qua các pattern số như 2020_QH14
+        if '_' in word and any(part.isdigit() for part in word.split('_')):
+            continue
+        important_words.append(word)
+
+    if important_words:
+        # Lấy chữ cái đầu của 2-4 từ quan trọng đầu tiên
+        first_letters = ''.join(w[0].upper() for w in important_words[:4])
+        result = f"L{first_letters}"
+        # Giới hạn độ dài
+        return result[:8]  # Tối đa 8 ký tự
+
+    # Fallback cuối cùng
+    first_letters = ''.join(w[0].upper() for w in words[:3] if len(w) > 1 and not w.isdigit())
+    return f"L{first_letters[:6]}"  # Giới hạn 6 ký tự
+
+
+def load_all_law_documents():
+    """Load và chunk tất cả văn bản luật từ thư mục law_content"""
+    print("📚 Loading ALL law documents from law_content folder...")
+
+    # Load danh sách file từ JSON
+    law_file_paths = []
+    try:
+        with open("data_files/law_file_paths.json", 'r', encoding='utf-8') as f:
+            law_file_paths = json.load(f)
+        print(f"✅ Loaded {len(law_file_paths)} law file paths from JSON")
+    except FileNotFoundError:
+        print("❌ data_files/law_file_paths.json not found! Please run find_law_files.py first.")
+        print("🔄 Running find_law_files.py to generate the file...")
+        try:
+            import subprocess
+            result = subprocess.run([sys.executable, "find_law_files.py"],
+                                  capture_output=True, text=True, cwd=os.getcwd())
+            if result.returncode == 0:
+                print("✅ Successfully generated data_files/law_file_paths.json")
+                with open("data_files/law_file_paths.json", 'r', encoding='utf-8') as f:
+                    law_file_paths = json.load(f)
+                print(f"✅ Loaded {len(law_file_paths)} law file paths from generated JSON")
+            else:
+                print(f"❌ Failed to generate data_files/law_file_paths.json: {result.stderr}")
+                return []
+        except Exception as e:
+            print(f"❌ Error running find_law_files.py: {e}")
+            return []
+    except Exception as e:
+        print(f"❌ Error loading data_files/law_file_paths.json: {e}")
         return []
+    
+    all_law_docs = []
+    successful_files = 0
+    failed_files = 0
+    
+    print(f"\n🔄 Processing {len(law_file_paths)} law files...")
+    
+    for i, file_info in enumerate(tqdm(law_file_paths, desc="Processing law files")):
+        file_path = file_info['path']
+        category = file_info['category']
+        file_name = file_info['file_name']
+        
+        # Kiểm tra xem file có trong thư mục luật không (đã được lọc trong find_law_files.py)
+        
+        print(f"\n📄 [{i+1}/{len(law_file_paths)}] Processing: {file_name}")
+        print(f"   Category: {category}")
+        print(f"   Path: {file_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"   ❌ File not found: {file_path}")
+            failed_files += 1
+            continue
+        
+        try:
+            # Bước 1: Đọc file
+            print(f"   📖 Reading file...")
+            law_text = read_docx(file_path)  # Hàm này đã xử lý cả .doc và .docx
+            
+            if not law_text or len(law_text.strip()) < 100:
+                print(f"   ⚠️ File seems empty or too short: {len(law_text)} characters")
+                print(f"   ⏭️ Skipping file (cannot read content)")
+                failed_files += 1
+                continue
+            
+            # Bước 2: Chia thành chunks
+            print(f"   🔨 Chunking document...")
+            # Tạo law_id tự động từ tên file
+            law_id = generate_law_id(file_name)
+            print(f"   📋 Generated law_id: {law_id}")
+            law_chunks = chunk_law_document(law_text, law_id=law_id, law_no="", law_title=file_name)
+
+            if not law_chunks:
+                print(f"   ⚠️ No chunks created from file")
+                failed_files += 1
+                continue
+
+            # Bước 3: Chuẩn bị dữ liệu cho đánh giá
+            print(f"   🗂️ Preparing chunks...")
+            for j, chunk in enumerate(law_chunks):
+                # Thêm thông tin về file gốc vào metadata
+                chunk_metadata = chunk.get('metadata', {}).copy()
+                chunk_metadata.update({
+                    'source_file': file_path,
+                    'source_category': category,
+                    'source_file_name': file_name,
+                    'chunk_index': j
+                })
+
+                # Tạo document theo format hn2014_chunks.json
+                all_law_docs.append({
+                    'id': chunk['id'],
+                    'content': chunk['content'],
+                    'metadata': chunk_metadata
+                })
+            
+            print(f"   ✅ Successfully processed {len(law_chunks)} chunks")
+            successful_files += 1
+            
+        except Exception as e:
+            print(f"   ❌ Error processing file: {e}")
+            failed_files += 1
+            continue
+    
+    print(f"\n📊 Processing Summary:")
+    print(f"   ✅ Successfully processed: {successful_files} files")
+    print(f"   ❌ Failed to process: {failed_files} files")
+    print(f"   📄 Total chunks created: {len(all_law_docs)}")
+    
+    if all_law_docs:
+        print(f"   📊 Average chunk length: {np.mean([len(doc['content']) for doc in all_law_docs]):.0f} characters")
+        
+        # Thống kê theo category
+        category_counts = {}
+        for doc in all_law_docs:
+            doc_category = doc.get('metadata', {}).get('source_category', 'Unknown')
+            category_counts[doc_category] = category_counts.get(doc_category, 0) + 1
+
+        print(f"\n📈 Chunk distribution by category:")
+        for category, count in category_counts.items():
+            print(f"   - {category}: {count} chunks")
+    
+    print(f"\n✅ Successfully loaded {len(all_law_docs)} law document chunks from {successful_files} files!")
+    return all_law_docs
+
+    # else:
+    #     # Load file cũ từ LuatHonNhan
+    #     print("📚 Loading law document from LuatHonNhan folder...")
+        
+    #     law_file_path = "LuatHonNhan/luat_hon_nhan_va_gia_dinh.docx"
+    #     if os.path.exists(law_file_path):
+    #         print(f"✅ Found law file: {law_file_path}")
+            
+    #         # Bước 1: Đọc file docx
+    #         print("\n📖 Step 1: Reading DOCX file...")
+    #         law_text = read_docx(law_file_path)
+            
+    #         # Bước 2: Chia thành chunks
+    #         print("\n🔨 Step 2: PROPER Advanced chunking with 2-pass validation...")
+    #         law_chunks = advanced_chunk_law_document(law_text, max_length=600)
+
+    #         # Bước 2.1: (Tuỳ chọn) Thẩm định bằng Gemini
+    #         if _env_truthy(os.getenv("CHUNK_AI_REVIEW", "false")):
+    #             print("\n🤖 AI Review: Calling Gemini to validate chunking...")
+    #             # Xây dựng summary nhẹ từ chunks (không có cảnh báo nội bộ)
+    #             try:
+    #                 chapters_seen = []
+    #                 seen_chapter_set = set()
+    #                 citations = []
+    #                 type_counts_tmp = {"article_intro": 0, "clause": 0, "point": 0}
+    #                 seen_articles = set()
+    #                 for c in law_chunks:
+    #                     md = c.get("metadata", {})
+    #                     ch = md.get("chapter")
+    #                     if ch and ch not in seen_chapter_set:
+    #                         seen_chapter_set.add(ch)
+    #                         chapters_seen.append(ch)
+    #                     cite = md.get("exact_citation")
+    #                     if cite:
+    #                         citations.append(cite)
+    #                     t = c.get("type")
+    #                     if t in type_counts_tmp:
+    #                         type_counts_tmp[t] += 1
+    #                     a_no = md.get("article_no")
+    #                     if a_no is not None:
+    #                         seen_articles.add(a_no)
+
+    #                 summary = {
+    #                     "chapters_seen": chapters_seen,
+    #                     "articles": len(seen_articles),
+    #                     "article_intro": type_counts_tmp.get("article_intro", 0),
+    #                     "clauses": type_counts_tmp.get("clauses", 0) or type_counts_tmp.get("clause", 0),
+    #                     "points": type_counts_tmp.get("points", 0) or type_counts_tmp.get("point", 0),
+    #                     "citations": citations,
+    #                     "warnings": [],
+    #                     "halted_reason": None,
+    #                     "total_chunks": len(law_chunks)
+    #                 }
+
+    #                 excerpts_len = int(os.getenv("CHUNK_REVIEW_EXCERPTS", "8000") or 8000)
+    #                 payload = build_review_payload(law_chunks, summary, law_text, sample_excerpts_chars=max(2000, excerpts_len))
+    #                 review = call_gemini_review(payload)
+    #                 status = review.get("status", "issues_found")
+    #                 confidence = review.get("confidence", 0.0)
+    #                 issues = review.get("issues", []) or []
+    #                 notes = review.get("notes", "")
+    #                 print(f"- Gemini status: {status} | confidence: {confidence:.2f}")
+    #                 if notes:
+    #                     print(f"- Notes: {notes[:4000]}")
+    #                 if issues:
+    #                     print("\n===== Gemini Issues =====")
+    #                     for i, it in enumerate(issues[:20], 1):
+    #                         print(f"{i:02d}. [{it.get('severity','?')}] ({it.get('category','other')}) {it.get('citation') or it.get('id') or ''}")
+    #                         print(f"    - {it.get('message','(no message)')}")
+    #                         if it.get('suggestion'):
+    #                             print(f"    → Suggestion: {it['suggestion']}")
+
+    #                 if _env_truthy(os.getenv("CHUNK_STRICT_OK_ONLY", "false")) and status != "ok":
+    #                     print("❌ CHUNK_STRICT_OK_ONLY is set and Gemini did not return 'ok'. Aborting load.")
+    #                     return []
+    #             except Exception as e:
+    #                 print(f"⚠️ Gemini review failed: {e}")
+    #                 if _env_truthy(os.getenv("CHUNK_STRICT_OK_ONLY", "false")):
+    #                     return []
+            
+    #         # Bước 3: Chuẩn bị dữ liệu cho đánh giá
+    #         print("\n🗂️ Step 3: Preparing data for evaluation...")
+    #         law_docs = []
+    #         for i, chunk in enumerate(law_chunks):
+    #             law_docs.append({
+    #                 'id': i,
+    #                 'title': chunk['title'],
+    #                 'text': chunk['content'],
+    #                 'length': len(chunk['content']),
+    #                 'type': chunk['type'],
+    #                 'metadata': chunk.get('metadata', {})
+    #             })
+            
+    #         print(f"   ✅ Processed {len(law_docs)} law document chunks")
+    #         print(f"   📊 Average chunk length: {np.mean([doc['length'] for doc in law_docs]):.0f} characters")
+            
+    #         # Thống kê theo loại
+    #         type_counts = {}
+    #         for doc in law_docs:
+    #             doc_type = doc['type']
+    #             type_counts[doc_type] = type_counts.get(doc_type, 0) + 1
+            
+    #         print(f"\n📈 Chunk distribution by type:")
+    #         for chunk_type, count in type_counts.items():
+    #             print(f"   - {chunk_type}: {count} chunks")
+            
+    #         print(f"\n✅ Successfully loaded {len(law_docs)} law document chunks!")
+    #         return law_docs
+            
+    #     else:
+    #         print(f"❌ File {law_file_path} not found!")
+    #         print(f"   Expected path: {os.path.abspath(law_file_path)}")
+    #         return []
 
 def get_models_to_evaluate():
     """Danh sách các mô hình cần đánh giá"""
@@ -935,8 +1148,47 @@ def get_models_to_evaluate():
         }
     ]
 
-def get_benchmark_queries():
-    """Các query từ benchmark"""
+def load_question_benchmark(random_sample=50):
+    """Load các câu hỏi từ file Excel để làm benchmark queries"""
+    try:
+        with open("data_files/law_questions.json", 'r', encoding='utf-8') as f:
+            questions = json.load(f)
+
+        print(f"✅ Loaded {len(questions)} benchmark questions from Excel files")
+
+        # Random sample 50 questions
+        if len(questions) > random_sample:
+            import random
+            questions_sample = random.sample(questions, random_sample)
+            print(f"🎲 Randomly selected {random_sample} questions for evaluation")
+        else:
+            questions_sample = questions
+            print(f"📊 Using all {len(questions)} questions (less than {random_sample})")
+
+        # Trả về list các query (chỉ lấy primary_query)
+        queries = [q['primary_query'] for q in questions_sample]
+
+        # Thống kê theo category
+        category_stats = {}
+        for q in questions_sample:
+            cat = q.get('full_category', 'Unknown')
+            category_stats[cat] = category_stats.get(cat, 0) + 1
+
+        print(f"📊 Sample distribution by category:")
+        for cat, count in sorted(category_stats.items()):
+            print(f"   - {cat}: {count} questions")
+
+        return queries, questions_sample
+
+    except FileNotFoundError:
+        print("⚠️ data_files/law_questions.json not found. Using default queries.")
+        return get_default_benchmark_queries(), []
+    except Exception as e:
+        print(f"⚠️ Error loading questions: {e}. Using default queries.")
+        return get_default_benchmark_queries(), []
+
+def get_default_benchmark_queries():
+    """Các query mặc định nếu không có file questions"""
     return [
         "Người bị bệnh tâm thần là người mất năng lực hành vi dân sự là đúng hay sai?",
         "Sự thỏa thuận của các bên không vi phạm điều cấm của pháp luật, không trái đạo đức xã hội thì được gọi là hợp đồng là đúng hay sai?",
@@ -959,6 +1211,13 @@ def get_benchmark_queries():
         "Quyền và nghĩa vụ của cha mẹ đối với con chưa thành niên?",
         "Trường hợp nào vợ chồng có thể thỏa thuận về chế độ tài sản?"
     ]
+
+def get_benchmark_queries():
+    """Các query từ benchmark - ưu tiên từ Excel, fallback về default"""
+    # Note: This function is kept for backward compatibility
+    # Main logic moved to load_question_benchmark() called directly in main()
+    queries, questions_sample = load_question_benchmark()
+    return queries
 
 def search_top_k(query_embedding, doc_embeddings, k=15):
     """Deprecated: để tương thích cũ. Không còn dùng khi đã chuyển sang Qdrant."""
@@ -983,7 +1242,7 @@ def calculate_metrics(scores, threshold_07=0.7, threshold_05=0.5):
 def display_search_results(query, law_docs, top_indices, top_scores, max_display=5):
     """Hiển thị kết quả search một cách rõ ràng"""
     print(f"📝 Query: {query}")
-    
+
     # Bảo đảm sắp xếp giảm dần theo điểm số
     if not isinstance(top_scores, np.ndarray):
         top_scores = np.array(top_scores)
@@ -994,20 +1253,26 @@ def display_search_results(query, law_docs, top_indices, top_scores, max_display
     top_scores = top_scores[order]
 
     print(f"🎯 Top {min(max_display, len(top_indices))} Results:")
-    
+
     for i in range(min(max_display, len(top_indices))):
         idx = int(top_indices[i])
         score = float(top_scores[i])
         doc = law_docs[idx]
-        
-        print(f"\n   {i+1}. Score: {score:.4f} | {doc['title']}")
-        print(f"      Type: {doc['type']} | Length: {doc['length']} chars")
+
+        print(f"\n   {i+1}. Score: {score:.4f} | {doc['id']}")
+        print(f"      Length: {len(doc['content'])} chars")
         print("      Content:")
-        print(doc['text'])
-        
+        print(doc['content'])
+
         if doc.get('metadata') and doc['metadata']:
-            metadata_str = ", ".join([f"{k}: {v}" for k, v in doc['metadata'].items()])
-            print(f"      Metadata: {metadata_str}")
+            # Chỉ hiển thị một số metadata quan trọng
+            important_meta = {
+                k: v for k, v in doc['metadata'].items()
+                if k in ['exact_citation', 'chapter', 'article_no', 'clause_no', 'point_letter', 'source_file_name']
+            }
+            if important_meta:
+                metadata_str = ", ".join([f"{k}: {v}" for k, v in important_meta.items()])
+                print(f"      Metadata: {metadata_str}")
 
 def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed_results=True, device="cuda"):
     """Đánh giá một mô hình embedding"""
@@ -1019,7 +1284,7 @@ def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed
     
     try:
         # Bước 1: Chuẩn bị texts
-        doc_texts = [doc['text'] for doc in law_docs]
+        doc_texts = [doc['content'] for doc in law_docs]
         print(f"\n📚 Step 1: Prepared {len(doc_texts)} document texts")
         
         # Bước 2: Kiểm tra Qdrant collection trước
@@ -1236,7 +1501,7 @@ def run_evaluation_all_models(models_to_evaluate, law_docs, benchmark_queries, d
     
     return evaluation_results
 
-def generate_final_report(evaluation_results, law_docs, benchmark_queries):
+def generate_final_report(evaluation_results, law_docs, benchmark_queries, sample_questions=None):
     """Tạo báo cáo chi tiết cuối cùng"""
     print("📊 Generating detailed analysis and final report...")
     
@@ -1367,7 +1632,27 @@ def generate_final_report(evaluation_results, law_docs, benchmark_queries):
     for rank, q in enumerate(top3_queries, start=1):
         print(f"\n   {rank}. Total Score: {q['total_score']:.4f}")
         print(f"      Query: {q['query']}")
-        # Print top 3 results for this query
+        # Hiển thị thông tin question từ Excel nếu có
+        question_info = {}
+        if sample_questions:
+            # Find matching question by query text to ensure correct mapping
+            query_text = q['query'].strip()
+            for sq in sample_questions:
+                if sq['primary_query'].strip() == query_text:
+                    question_info = {
+                        'category': sq.get('full_category', ''),
+                        'positive_answer': sq.get('positive', ''),
+                        'negative_answer': sq.get('negative', ''),
+                        'source_file': sq.get('source_file', '')
+                    }
+                    print(f"      Category: {question_info['category']}")
+                    if question_info['positive_answer']:
+                        print(f"      Expected Answer: {question_info['positive_answer'][:100]}...")
+                    if question_info['negative_answer']:
+                        print(f"      Negative Answer: {question_info['negative_answer'][:100]}...")
+                    break
+
+        # Print top 3 results for this query with FULL CONTENT
         top_n = min(3, len(q['top_indices']))
         answers = []
         for i in range(top_n):
@@ -1377,36 +1662,42 @@ def generate_final_report(evaluation_results, law_docs, benchmark_queries):
                 doc = law_docs[idx]
                 md = doc.get('metadata') or {}
                 citation = md.get('exact_citation') or ''
-                print(f"         - Rank {i+1}: {score:.4f} | {doc.get('title','')}")
-                if citation:
-                    print(f"           Citation: {citation}")
+                law_id = md.get('law_id', '')
+
+                print(f"\n         📄 Rank {i+1}: Score {score:.4f} | Law: {law_id}")
+                print(f"         📝 Citation: {citation}")
+                print(f"         📖 Content: {doc['content'][:300]}...")
+                if len(doc['content']) > 300:
+                    print(f"         ... ({len(doc['content'])} chars total)")
+
                 # collect for JSON
                 answers.append({
                     'rank': i+1,
                     'score': score,
-                    'title': doc.get('title', ''),
                     'citation': citation,
-                    'type': doc.get('type', ''),
-                    'length': doc.get('length', 0),
-                    'content': doc.get('text', '')
+                    'law_id': law_id,
+                    'content': doc.get('content', ''),
+                    'metadata': md
                 })
             else:
                 print(f"         - Rank {i+1}: {score:.4f} | [Index {idx} out of range]")
                 answers.append({
                     'rank': i+1,
                     'score': score,
-                    'title': '',
                     'citation': '',
-                    'type': '',
-                    'length': 0,
+                    'law_id': '',
                     'content': '',
+                    'metadata': {},
                     'note': f'Index {idx} out of range'
                 })
+        # Thêm thông tin question từ Excel (đã được set ở trên)
+
         top_queries_detailed.append({
             'rank': rank,
             'query_id': q['query_id'],
             'query': q['query'],
             'total_score': q['total_score'],
+            'question_info': question_info,
             'top_answers': answers
         })
 
@@ -1451,7 +1742,7 @@ def generate_final_report(evaluation_results, law_docs, benchmark_queries):
     print(f"\n💾 EXPORT OPTIONS:")
     print(f"   To save results to JSON file:")
     print(f"   → import json")
-    print(f"   → with open('embedding_evaluation_results.json', 'w', encoding='utf-8') as f:")
+    print(f"   → with open('results/embedding_evaluation_results.json', 'w', encoding='utf-8') as f:")
     print(f"   →     json.dump(evaluation_results, f, ensure_ascii=False, indent=2)")
     
     print(f"\n🎉 Report generation completed!")
@@ -1462,7 +1753,7 @@ def test_single_query(best_model_name, models_to_evaluate, law_docs, device="cud
     """Test với một query đơn lẻ"""
     print("🧪 Quick test with single query...")
     
-    test_query = "Điều kiện kết hôn của nam và nữ theo pháp luật Việt Nam là gì?"
+    test_query = "Dự án đầu tư xây dựng khu đô thị phải có công năng hỗn hợp, đồng bộ hạ tầng hạ tầng kỹ thuật, hạ tầng xã hội và nhà ở theo quy hoạch được phê duyệt?"
     print(f"📝 Test Query: {test_query}")
     print(f"🥇 Using best model: {best_model_name}")
     
@@ -1512,26 +1803,26 @@ def main():
     device = setup_environment()
     
     # 2. Load law documents
-    law_docs = load_law_documents()
+    law_docs = load_all_law_documents()
     if not law_docs:
         print("❌ Cannot proceed without law documents!")
         return
     
     # 3. Get models and queries
     models_to_evaluate = get_models_to_evaluate()
-    benchmark_queries = get_benchmark_queries()
-    
+    benchmark_queries, sample_questions = load_question_benchmark()  # Get benchmark queries and sample questions
+
     print(f"\n🤖 Prepared {len(models_to_evaluate)} models for evaluation:")
     for i, model in enumerate(models_to_evaluate):
         print(f"   {i+1}. {model['name']}")
         print(f"      Type: {model['type']} | Max Length: {model['max_length']} tokens")
         print(f"      Description: {model['description']}")
         print()
-    
+
     print(f"🎯 All models support ≥512 tokens as required!")
     print(f"💾 Embeddings will be stored in Qdrant vector database")
-    
-    print(f"\nPrepared {len(benchmark_queries)} benchmark queries")
+
+    print(f"\nPrepared {len(benchmark_queries)} benchmark queries from Excel files")
     print("Sample queries:")
     for i, query in enumerate(benchmark_queries[:5]):
         print(f"{i+1}. {query}")
@@ -1540,7 +1831,7 @@ def main():
     evaluation_results = run_evaluation_all_models(models_to_evaluate, law_docs, benchmark_queries, device)
     
     # 5. Generate final report
-    evaluation_summary = generate_final_report(evaluation_results, law_docs, benchmark_queries)
+    evaluation_summary = generate_final_report(evaluation_results, law_docs, benchmark_queries, sample_questions)
     
     # 6. Test single query with best model
     if evaluation_summary:
@@ -1549,9 +1840,26 @@ def main():
     # 7. Save results to JSON
     if evaluation_results:
         try:
-            with open('embedding_evaluation_results.json', 'w', encoding='utf-8') as f:
+            # Save full results
+            with open('results/embedding_evaluation_results.json', 'w', encoding='utf-8') as f:
                 json.dump(evaluation_results, f, ensure_ascii=False, indent=2)
-            print(f"\n💾 Results saved to: embedding_evaluation_results.json")
+            print(f"\n💾 Full results saved to: results/embedding_evaluation_results.json")
+
+            # Also save clean top queries analysis
+            top_queries_summary = []
+            for model_result in evaluation_results:
+                model_name = model_result['model_name']
+                if 'top_queries_by_total_score' in model_result:
+                    top_queries_summary.append({
+                        "model_name": model_name,
+                        "top_queries_by_total_score": model_result['top_queries_by_total_score']
+                    })
+
+            if top_queries_summary:
+                with open('results/top_queries_analysis.json', 'w', encoding='utf-8') as f:
+                    json.dump(top_queries_summary, f, ensure_ascii=False, indent=2)
+                print(f"💾 Top queries analysis saved to: results/top_queries_analysis.json")
+
         except Exception as e:
             print(f"\n⚠️ Could not save results to JSON: {e}")
     

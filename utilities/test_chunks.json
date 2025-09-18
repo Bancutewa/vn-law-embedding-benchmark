@@ -1,0 +1,80 @@
+[
+  {
+    "id": "TEST-D1",
+    "content": "Điều 1. Phạm vi điều chỉnh\nLuật này quy định chế độ hôn nhân và gia đình; chuẩn mực pháp lý cho cách ứng xử giữa các thành viên gia đình; trách nhiệm của cá nhân, tổ chức, Nhà nước và xã hội trong việc xây dựng, củng cố chế độ hôn nhân và gia đình.",
+    "metadata": {
+      "law_no": "123/2024/QH15",
+      "law_title": "Luật Test",
+      "law_id": "TEST",
+      "chapter": null,
+      "section": null,
+      "article_no": 1,
+      "article_title": "Phạm vi điều chỉnh",
+      "exact_citation": "Điều 1"
+    }
+  },
+  {
+    "id": "TEST-D2-K1",
+    "content": "Điều 2 Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình Khoản 1. Hôn nhân tự nguyện, tiến bộ, một vợ một chồng, vợ chồng bình đẳng.",
+    "metadata": {
+      "law_no": "123/2024/QH15",
+      "law_title": "Luật Test",
+      "law_id": "TEST",
+      "chapter": null,
+      "section": null,
+      "article_no": 2,
+      "article_title": "Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình",
+      "clause_no": 1,
+      "exact_citation": "Điều 2 khoản 1"
+    }
+  },
+  {
+    "id": "TEST-D2-K2",
+    "content": "Điều 2 Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình Khoản 2. Hôn nhân giữa công dân Việt Nam thuộc các dân tộc, tôn giáo, giữa người theo tôn giáo với người không theo tôn giáo, giữa công dân Việt Nam với người nước ngoài được tôn trọng và được pháp luật bảo vệ.",
+    "metadata": {
+      "law_no": "123/2024/QH15",
+      "law_title": "Luật Test",
+      "law_id": "TEST",
+      "chapter": null,
+      "section": null,
+      "article_no": 2,
+      "article_title": "Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình",
+      "clause_no": 2,
+      "exact_citation": "Điều 2 khoản 2"
+    }
+  },
+  {
+    "id": "TEST-D2-K3-a",
+    "content": "Điều 2 Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình Khoản 3 Xây dựng gia đình ấm no, tiến bộ, hạnh phúc; các thành viên gia đình có nghĩa vụ tôn trọng, quan tâm, chăm sóc, giúp đỡ nhau; không phân biệt đối xử giữa các con., điểm a): Trường hợp này áp dụng khi cha mẹ ly hôn.",
+    "metadata": {
+      "law_no": "123/2024/QH15",
+      "law_title": "Luật Test",
+      "law_id": "TEST",
+      "chapter": null,
+      "section": null,
+      "article_no": 2,
+      "article_title": "Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình",
+      "clause_no": 3,
+      "point_letter": "a",
+      "exact_citation": "Điều 2 khoản 3 điểm a)",
+      "clause_intro": "Xây dựng gia đình ấm no, tiến bộ, hạnh phúc; các thành viên gia đình có nghĩa vụ tôn trọng, quan tâm, chăm sóc, giúp đỡ nhau; không phân biệt đối xử giữa các con."
+    }
+  },
+  {
+    "id": "TEST-D2-K3-b",
+    "content": "Điều 2 Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình Khoản 3 Xây dựng gia đình ấm no, tiến bộ, hạnh phúc; các thành viên gia đình có nghĩa vụ tôn trọng, quan tâm, chăm sóc, giúp đỡ nhau; không phân biệt đối xử giữa các con., điểm b): Trường hợp cha mẹ chết hoặc mất năng lực hành vi dân sự.",
+    "metadata": {
+      "law_no": "123/2024/QH15",
+      "law_title": "Luật Test",
+      "law_id": "TEST",
+      "chapter": null,
+      "section": null,
+      "article_no": 2,
+      "article_title": "Những nguyên tắc cơ bản của chế độ hôn nhân và gia đình",
+      "clause_no": 3,
+      "point_letter": "b",
+      "exact_citation": "Điều 2 khoản 3 điểm b)",
+      "clause_intro": "Xây dựng gia đình ấm no, tiến bộ, hạnh phúc; các thành viên gia đình có nghĩa vụ tôn trọng, quan tâm, chăm sóc, giúp đỡ nhau; không phân biệt đối xử giữa các con."
+    }
+  }
+]

@@ -4,15 +4,122 @@ Dự án này đánh giá và so sánh các mô hình embedding cho văn bản l
 
 ## 📋 Tổng quan
 
-- **Dataset:** Luật Hôn nhân và Gia đình Việt Nam 2014 (396 chunks)
-- **Models:** 6 mô hình embedding Vietnamese và multilingual
-- **Chunking:** 2-pass system với clause intro injection
-- **Storage:** RAM-based caching (không dùng vector database)
-- **Interface:** Gradio web interface cho testing real-time
+- **Dataset:** Luật Việt Nam từ nhiều lĩnh vực (hiện tại: 511 chunks từ 7 luật)
+- **Benchmark Questions:** 511 câu hỏi từ Excel files → Random 50 câu cho evaluation
+- **Models:** 4 mô hình embedding Vietnamese và multilingual
+- **Chunking:** 2-pass system với clause intro injection & law_id tự động
+- **Storage:** Qdrant vector database với batch upsert
+- **Analysis:** **Top 3 queries** với **full content** và thông tin đối chiếu
+- **Output:** `embedding_evaluation_results.json` với detailed analysis
+
+## 📁 Cấu trúc thư mục
+
+```
+vn-law-embedding-benchmark/
+├── embedding_evaluation.py       # Main evaluation script
+├── find_law_files.py            # Law document discovery
+├── find_question_files.py       # Question extraction from Excel
+├── README.md                    # Documentation
+├── requirements.txt             # Dependencies
+├── setup_environment.bat        # Environment setup
+├── Danh_Gia_Mo_Hinh_Embedding.ipynb  # Jupyter notebook
+├── data_files/                  # Data files
+│   ├── law_file_paths.json      # Law document metadata
+│   └── law_questions.json       # Benchmark questions
+├── results/                     # Output files
+│   ├── embedding_evaluation_results.json
+│   └── top_queries_analysis.json
+├── utilities/                   # Utility scripts
+│   ├── view_top_queries.py      # View top queries results
+│   ├── test_chunking.py         # Chunking tests
+│   └── test_readable_files.py   # File reading tests
+└── law_content/                 # Raw law documents
+```
 
 ## 🚀 Cách sử dụng
 
-### 1. Cài đặt môi trường
+### 1. Chuẩn bị dữ liệu
+
+```bash
+# 1. Tìm và catalog tất cả file luật
+python find_law_files.py
+
+# 2. Trích xuất câu hỏi từ file Excel
+python find_question_files.py
+
+# Output files:
+# - data_files/law_file_paths.json: Danh sách file luật
+# - data_files/law_questions.json: 511 câu hỏi benchmark
+```
+
+### 2. Chạy đánh giá với 50 câu hỏi random
+
+```bash
+# Chạy full evaluation với 50 queries random + hiển thị top 3
+python embedding_evaluation.py
+
+# Output:
+# - results/embedding_evaluation_results.json: Kết quả đánh giá đầy đủ (ghi đè)
+# - results/top_queries_analysis.json: Top queries analysis sạch (tự động tạo)
+# - Console: Top 3 queries với full content và thông tin đối chiếu
+
+
+## 📊 Output Format
+
+### Top 3 Queries Display
+```
+
+🔝 TOP 3 QUERIES BY TOTAL SCORE (Best Model)
+
+1.  Total Score: 12.456
+    Query: [Câu hỏi từ Excel]
+    Category: Bất động sản - Luật Đất Đai
+    Expected Answer: [Câu trả lời tích cực từ Excel]...
+    Negative Answer: [Câu trả lời tiêu cực từ Excel]...
+
+    📄 Rank 1: Score 0.823 | Law: LDATDAI
+    📝 Citation: Điều 1
+    📖 Content: Điều 1. Phạm vi điều chỉnh Luật này quy định...
+    ... (500 chars total)
+
+    📄 Rank 2: Score 0.756 | Law: LDATDAI
+    📝 Citation: Điều 2
+    📖 Content: Điều 2. Đối tượng áp dụng...
+    ... (300 chars total)
+
+````
+
+### JSON Results
+```json
+{
+  "model_name": "minhquan6203/paraphrase-vietnamese-law",
+  "top_queries_by_total_score": [
+    {
+      "rank": 1,
+      "query": "Câu hỏi...",
+      "total_score": 12.456,
+      "question_info": {
+        "category": "Bất động sản - Luật Đất Đai",
+        "positive_answer": "Câu trả lời tích cực...",
+        "negative_answer": "Câu trả lời tiêu cực...",
+        "source_file": "Luật đất đai 2024_.xlsx"
+      },
+      "top_answers": [
+        {
+          "rank": 1,
+          "score": 0.823,
+          "citation": "Điều 1",
+          "law_id": "LDATDAI",
+          "content": "Full content...",
+          "metadata": {...}
+        }
+      ]
+    }
+  ]
+}
+````
+
+### 3. Cài đặt môi trường
 
 ```bash
 # Tạo virtual environment
@@ -31,18 +138,58 @@ pip install -r requirements.txt
 
 Script này sẽ:
 
-- ✅ Load và chunk dữ liệu luật từ DOCX
-- ✅ Đánh giá 6 mô hình embedding
-- ✅ Tạo báo cáo chi tiết với ranking
+- ✅ Load và chunk dữ liệu luật từ DOCX (tự động tạo law_id)
+- ✅ Trích xuất câu hỏi từ Excel files (format Query-Positive-Negative)
+- ✅ **Random 50 câu hỏi** từ 511 câu benchmark để đánh giá
+- ✅ Đánh giá 4 mô hình embedding với 50 câu hỏi đã chọn
+- ✅ Lưu trữ embeddings trong Qdrant vector database
+- ✅ **Hiển thị TOP 3 câu hỏi** có tổng score cao nhất với **full content**
+- ✅ Tạo báo cáo chi tiết với ranking và phân tích
+- ✅ Ghi đè file `embedding_evaluation_results.json`
 
 ## 🤖 Models được đánh giá
 
 1. **🏆 minhquan6203/paraphrase-vietnamese-law** (Best)
-2. **huyhuy123/paraphrase-vietnamese-law-ALQAC**
+2. **sentence-transformers/paraphrase-multilingual-mpnet-base-v2**
 3. **namnguyenba2003/Vietnamese_Law_Embedding_finetuned_v3_256dims**
-4. **sentence-transformers/paraphrase-multilingual-mpnet-base-v2**
-5. **BAAI/bge-m3**
-6. **maiduchuy321/vietnamese-bi-encoder-fine-tuning-for-law-chatbot**
+4. **truro7/vn-law-embedding**
+
+## 📊 Dataset & Questions
+
+### Luật Documents
+
+- **Tự động phát hiện:** Script `find_law_files.py` tìm tất cả file .docx trong `law_content/`
+- **Chunking thông minh:** Chia theo cấu trúc Điều-Khoản-Điểm với law_id tự động
+- **Law ID mapping:**
+  - `LKBDS` → Luật Kinh Doanh Bất Động Sản
+  - `LNHAO` → Luật Nhà Ở
+  - `LDATDAI` → Luật Đất Đai
+  - `LDAUTU` → Luật Đầu Tư
+  - `LTSDDNONGNGHIEP` → Luật Thuế Sử Dụng Đất Nông Nghiệp
+  - `LTSDDPHINONGNGHIEP` → Luật Thuế Sử Dụng Đất Phi Nông Nghiệp
+  - `LXAYDUNG` → Luật Xây Dựng
+
+### Benchmark Questions
+
+- **Nguồn:** File Excel .xlsx trong thư mục `Câu hỏi/`
+- **Format:** Mỗi file có 3 cột: `Query`, `Positive`, `Negative`
+- **Tự động trích xuất:** Script `find_question_files.py` xử lý tất cả file Excel
+- **Số lượng:** 511 câu hỏi từ 4 luật bất động sản
+
+```bash
+# Trích xuất câu hỏi từ Excel
+python find_question_files.py
+
+# Output: law_questions.json với cấu trúc
+{
+  "id": "file_name_Q1",
+  "query": "Câu hỏi...",
+  "positive": "Câu trả lời tích cực...",
+  "negative": "Câu trả lời tiêu cực...",
+  "query_variations": ["query1", "query2", ...],
+  "full_category": "Bất động sản - Luật Đất Đai"
+}
+```
 
 ## 🎯 Interface Features
 

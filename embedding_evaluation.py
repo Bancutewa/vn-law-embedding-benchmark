@@ -129,6 +129,42 @@ def ensure_collection(client: QdrantClient, collection_name: str, vector_size: i
     )
     print(f"✅ Collection ready: {collection_name} (dim={vector_size})")
 
+    try:
+        from qdrant_client.http.models import PayloadSchemaType
+
+        index_fields = {
+            # Cấu trúc pháp điển
+            "metadata.law_id": PayloadSchemaType.keyword,
+            "metadata.law_title": PayloadSchemaType.keyword,
+            "metadata.law_no": PayloadSchemaType.keyword,
+            "metadata.chapter": PayloadSchemaType.keyword,
+            "metadata.section": PayloadSchemaType.keyword,
+            "metadata.article_no": PayloadSchemaType.integer,
+            "metadata.article_title": PayloadSchemaType.keyword,
+            "metadata.clause_no": PayloadSchemaType.integer,
+            "metadata.point_letter": PayloadSchemaType.keyword,
+            "metadata.exact_citation": PayloadSchemaType.keyword,
+            # Nguồn
+            "metadata.source_category": PayloadSchemaType.keyword,
+            "metadata.source_file_name": PayloadSchemaType.keyword,
+            "metadata.source_file": PayloadSchemaType.keyword,
+            "metadata.chunk_index": PayloadSchemaType.integer,
+        }
+
+        for field_name, schema_type in index_fields.items():
+            try:
+                client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=field_name,
+                    field_schema=schema_type,
+                )
+                print(f"   🔎 Indexed payload field: {field_name} ({schema_type})")
+            except Exception as ie:
+                # Có thể index đã tồn tại sau khi recreate; chỉ log cảnh báo nhẹ
+                print(f"   ⚠️ Could not index '{field_name}': {ie}")
+    except Exception as e:
+        print(f"⚠️ Skipped creating payload indexes: {e}")
+
 
 def upsert_embeddings_to_qdrant(client: QdrantClient, collection_name: str, embeddings: np.ndarray, law_docs: list, batch_size=100):
     """Upsert toàn bộ embeddings và payload vào Qdrant theo batch nhỏ."""
@@ -445,10 +481,10 @@ def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
     print("   🔍 Chunking law document with strict parsing...")
 
     lines = normalize_lines(text)
-
+    
     # Regex patterns
     ARTICLE_RE = re.compile(r'^Điều\s+(\d+)\s*[\.:]?\s*(.*)$', re.UNICODE)
-    CHAPTER_RE = re.compile(r'^Chương\s+([IVXLCDM]+)\s*(.*)$', re.UNICODE | re.IGNORECASE)
+    CHAPTER_RE = re.compile(r'^Chương\s+([IVXLCDM]+|\d+)\s*(.*)$', re.UNICODE | re.IGNORECASE)
     SECTION_RE = re.compile(r'^Mục\s+(\d+)\s*[:\-]?\s*(.*)$', re.UNICODE | re.IGNORECASE)
     CLAUSE_RE = re.compile(r'^\s*(\d+)\.\s*(.*)$', re.UNICODE)
     POINT_RE = re.compile(r'^\s*([a-zA-ZđĐ])\)\s+(.*)$', re.UNICODE)
@@ -458,22 +494,22 @@ def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
     chapters_labels, article_titles_seen = [], []
 
     for line in lines:
-        if not line:
-            continue
-        m_ch = CHAPTER_RE.match(line)
-        if m_ch:
-            n = roman_to_int(m_ch.group(1))
-            if n:
-                chapters_nums.append(n)
-                title = (m_ch.group(2) or "").strip()
-                chapters_labels.append(
-                    f"Chương {m_ch.group(1).strip()}" + (f" – {title}" if title else "")
-                )
-            continue
-        m_art = ARTICLE_RE.match(line)
-        if m_art:
-            articles_nums.append(int(m_art.group(1)))
-            continue
+            if not line:
+                continue
+            m_ch = CHAPTER_RE.match(line)
+            if m_ch:
+                n = roman_to_int(m_ch.group(1))
+                if n:
+                    chapters_nums.append(n)
+                    title = (m_ch.group(2) or "").strip()
+                    chapters_labels.append(
+                        f"Chương {m_ch.group(1).strip()}" + (f" – {title}" if title else "")
+                    )
+                continue
+            m_art = ARTICLE_RE.match(line)
+            if m_art:
+                articles_nums.append(int(m_art.group(1)))
+                continue
 
     chapters_set, articles_set = set(chapters_nums), set(articles_nums)
 
@@ -631,7 +667,7 @@ def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
                     point_letter = None
                     point_buf = ""
                     clause_intro_current = None
-                continue
+                    continue
             continue
 
         if expecting_article_title:
@@ -661,13 +697,13 @@ def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
             if expected_chapter is None:
                 expected_chapter = ch_num + 1
             elif ch_num == expected_chapter:
-                expected_chapter = ch_num + 1
+                    expected_chapter = ch_num + 1
             elif ch_num > expected_chapter:
                 if expected_chapter not in chapters_set:
                     break
                 continue
             else:
-                continue
+                    continue
 
             chapter_label = lbl
             section_label = None
@@ -734,7 +770,7 @@ def chunk_law_document(text, law_id="LAW", law_no="", law_title=""):
                     seeking_article = True
                     continue
             else:
-                continue
+                    continue
 
         if article_no is None:
             continue
@@ -883,7 +919,7 @@ def generate_law_id(file_name: str) -> str:
 def load_all_law_documents():
     """Load và chunk tất cả văn bản luật từ thư mục law_content"""
     print("📚 Loading ALL law documents from law_content folder...")
-
+    
     # Load danh sách file từ JSON
     law_file_paths = []
     try:
@@ -895,7 +931,7 @@ def load_all_law_documents():
         print("🔄 Running find_law_files.py to generate the file...")
         try:
             import subprocess
-            result = subprocess.run([sys.executable, "find_law_files.py"],
+            result = subprocess.run([sys.executable, "find_law_files.py"], 
                                   capture_output=True, text=True, cwd=os.getcwd())
             if result.returncode == 0:
                 print("✅ Successfully generated data_files/law_file_paths.json")
@@ -951,12 +987,12 @@ def load_all_law_documents():
             law_id = generate_law_id(file_name)
             print(f"   📋 Generated law_id: {law_id}")
             law_chunks = chunk_law_document(law_text, law_id=law_id, law_no="", law_title=file_name)
-
+            
             if not law_chunks:
                 print(f"   ⚠️ No chunks created from file")
                 failed_files += 1
                 continue
-
+            
             # Bước 3: Chuẩn bị dữ liệu cho đánh giá
             print(f"   🗂️ Preparing chunks...")
             for j, chunk in enumerate(law_chunks):
@@ -968,7 +1004,7 @@ def load_all_law_documents():
                     'source_file_name': file_name,
                     'chunk_index': j
                 })
-
+                
                 # Tạo document theo format hn2014_chunks.json
                 all_law_docs.append({
                     'id': chunk['id'],
@@ -997,7 +1033,7 @@ def load_all_law_documents():
         for doc in all_law_docs:
             doc_category = doc.get('metadata', {}).get('source_category', 'Unknown')
             category_counts[doc_category] = category_counts.get(doc_category, 0) + 1
-
+        
         print(f"\n📈 Chunk distribution by category:")
         for category, count in category_counts.items():
             print(f"   - {category}: {count} chunks")
@@ -1242,7 +1278,7 @@ def calculate_metrics(scores, threshold_07=0.7, threshold_05=0.5):
 def display_search_results(query, law_docs, top_indices, top_scores, max_display=5):
     """Hiển thị kết quả search một cách rõ ràng"""
     print(f"📝 Query: {query}")
-
+    
     # Bảo đảm sắp xếp giảm dần theo điểm số
     if not isinstance(top_scores, np.ndarray):
         top_scores = np.array(top_scores)
@@ -1253,17 +1289,17 @@ def display_search_results(query, law_docs, top_indices, top_scores, max_display
     top_scores = top_scores[order]
 
     print(f"🎯 Top {min(max_display, len(top_indices))} Results:")
-
+    
     for i in range(min(max_display, len(top_indices))):
         idx = int(top_indices[i])
         score = float(top_scores[i])
         doc = law_docs[idx]
-
+        
         print(f"\n   {i+1}. Score: {score:.4f} | {doc['id']}")
         print(f"      Length: {len(doc['content'])} chars")
         print("      Content:")
         print(doc['content'])
-
+        
         if doc.get('metadata') and doc['metadata']:
             # Chỉ hiển thị một số metadata quan trọng
             important_meta = {
@@ -1272,7 +1308,7 @@ def display_search_results(query, law_docs, top_indices, top_scores, max_display
             }
             if important_meta:
                 metadata_str = ", ".join([f"{k}: {v}" for k, v in important_meta.items()])
-                print(f"      Metadata: {metadata_str}")
+            print(f"      Metadata: {metadata_str}")
 
 def evaluate_single_model(model_info, law_docs, queries, top_k=15, show_detailed_results=True, device="cuda"):
     """Đánh giá một mô hình embedding"""
@@ -1811,17 +1847,17 @@ def main():
     # 3. Get models and queries
     models_to_evaluate = get_models_to_evaluate()
     benchmark_queries, sample_questions = load_question_benchmark()  # Get benchmark queries and sample questions
-
+    
     print(f"\n🤖 Prepared {len(models_to_evaluate)} models for evaluation:")
     for i, model in enumerate(models_to_evaluate):
         print(f"   {i+1}. {model['name']}")
         print(f"      Type: {model['type']} | Max Length: {model['max_length']} tokens")
         print(f"      Description: {model['description']}")
         print()
-
+    
     print(f"🎯 All models support ≥512 tokens as required!")
     print(f"💾 Embeddings will be stored in Qdrant vector database")
-
+    
     print(f"\nPrepared {len(benchmark_queries)} benchmark queries from Excel files")
     print("Sample queries:")
     for i, query in enumerate(benchmark_queries[:5]):

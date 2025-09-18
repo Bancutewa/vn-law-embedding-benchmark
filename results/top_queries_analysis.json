@@ -4,108 +4,22 @@
     "top_queries_by_total_score": [
       {
         "rank": 1,
-        "query_id": 22,
-        "query": "Việc thực hiện dự án đầu tư xây dựng nhà ở thương mại phải tuân thủ Luật Nhà ở, pháp luật về xây dựng và các quy định pháp luật khác có liên quan.",
-        "total_score": 14.285686620000002,
-        "question_info": {
-          "category": "Bất động sản - Luật Nhà Ở",
-          "positive_answer": "khoản 1 Điều 37 LNO \"Điều 37. Thực hiện dự án đầu tư xây dựng nhà ở thương mại\n1. Việc thực hiện dự án đầu tư xây dựng nhà ở phải tuân thủ quy định của Luật này, pháp luật về xây dựng và quy định khác của pháp luật có liên quan.\"",
-          "negative_answer": "",
-          "source_file": "Luật nhà ở 2023.xlsx"
-        },
-        "top_answers": [
-          {
-            "rank": 1,
-            "score": 0.986616,
-            "citation": "Điều 75 khoản 1 điểm d)",
-            "law_id": "LDAUTU",
-            "content": "Điều 75 Sửa đổi, bổ sung một số điều của các luật có liên quan đến đầu tư kinh doanh Khoản 1 Sửa đổi, bổ sung một số điều của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 như sau, điểm d): Sửa đổi, bổ sung khoản 2 Điều 170 như sau:\n“2. Đối với dự án xây dựng nhà ở khác thuộc diện chấp thuận chủ trương đầu tư theo quy định của Luật Đầu tư thì thực hiện theo quy định của Luật Đầu tư.”;",
-            "metadata": {
-              "law_no": "",
-              "law_title": "Văn bản hợp nhất 09_VBHN-VPQH 2025 hợp nhất Luật Đầu tư.docx",
-              "law_id": "LDAUTU",
-              "chapter": "Chương VII",
-              "section": null,
-              "article_no": 75,
-              "article_title": "Sửa đổi, bổ sung một số điều của các luật có liên quan đến đầu tư kinh doanh",
-              "clause_no": 1,
-              "point_letter": "d",
-              "exact_citation": "Điều 75 khoản 1 điểm d)",
-              "clause_intro": "Sửa đổi, bổ sung một số điều của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 như sau:",
-              "source_file": "law_content\\Bất động sản\\Luật đầu tư_\\Văn bản pháp luật_\\Văn bản hợp nhất 09_VBHN-VPQH 2025 hợp nhất Luật Đầu tư.docx",
-              "source_category": "Bất động sản - Luật đầu tư_",
-              "source_file_name": "Văn bản hợp nhất 09_VBHN-VPQH 2025 hợp nhất Luật Đầu tư.docx",
-              "chunk_index": 631
-            }
-          },
-          {
-            "rank": 2,
-            "score": 0.986616,
-            "citation": "Điều 75 khoản 1 điểm d)",
-            "law_id": "LDAUTU",
-            "content": "Điều 75 Sửa đổi, bổ sung một số điều của các luật có liên quan đến đầu tư kinh doanh Khoản 1 Sửa đổi, bổ sung một số điều của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 như sau, điểm d): Sửa đổi, bổ sung khoản 2 Điều 170 như sau:\n“2. Đối với dự án xây dựng nhà ở khác thuộc diện chấp thuận chủ trương đầu tư theo quy định của Luật Đầu tư thì thực hiện theo quy định của Luật Đầu tư.”;",
-            "metadata": {
-              "law_no": "",
-              "law_title": "Luật Đầu tư 2020, số 61_2020_QH14.docx",
-              "law_id": "LDAUTU",
-              "chapter": "Chương VII",
-              "section": null,
-              "article_no": 75,
-              "article_title": "Sửa đổi, bổ sung một số điều của các luật có liên quan đến đầu tư kinh doanh",
-              "clause_no": 1,
-              "point_letter": "d",
-              "exact_citation": "Điều 75 khoản 1 điểm d)",
-              "clause_intro": "Sửa đổi, bổ sung một số điều của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 như sau:",
-              "source_file": "law_content\\Bất động sản\\Luật đầu tư_\\Văn bản pháp luật_\\Luật Đầu tư 2020, số 61_2020_QH14.docx",
-              "source_category": "Bất động sản - Luật đầu tư_",
-              "source_file_name": "Luật Đầu tư 2020, số 61_2020_QH14.docx",
-              "chunk_index": 620
-            }
-          },
-          {
-            "rank": 3,
-            "score": 0.9820379,
-            "citation": "Điều 2 khoản 2 điểm a)",
-            "law_id": "LXAYDUNG",
-            "content": "Điều 2 Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 Khoản 2 Dự án đầu tư xây dựng nhà ở theo quy định của Luật này bao gồm, điểm a): Dự ấn đầu tư xây dựng mới hoặc cải tạo một công trình nhà ở độc lập hoặc một cụm công trình nhà ở;",
-            "metadata": {
-              "law_no": "",
-              "law_title": "Luật số_ 62_2020_QH14.docx",
-              "law_id": "LXAYDUNG",
-              "chapter": null,
-              "section": null,
-              "article_no": 2,
-              "article_title": "Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14",
-              "clause_no": 2,
-              "point_letter": "a",
-              "exact_citation": "Điều 2 khoản 2 điểm a)",
-              "clause_intro": "Dự án đầu tư xây dựng nhà ở theo quy định của Luật này bao gồm:",
-              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
-              "source_category": "Bất động sản - Luật xây dựng",
-              "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 362
-            }
-          }
-        ]
-      },
-      {
-        "rank": 2,
-        "query_id": 35,
-        "query": "Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng chỉ được tính kể từ ngày cơ quan hoặc tổ chức thẩm định nhận đủ hồ sơ hợp lệ.",
-        "total_score": 14.036667449999998,
+        "query_id": 49,
+        "query": "Giấy phép xây dựng theo giai đoạn được cấp cho từng phần công trình hoặc từng công \ntrình của dự án khi thiết kế chưa hoàn thành toàn bộ.",
+        "total_score": 14.684998979999998,
         "question_info": {
           "category": "Bất động sản - Luật xây dựng",
-          "positive_answer": "Theo khoản 1 điều 59 Luật Xây dựng 2014 sửa đổi, bổ sung 2020 \nĐiều 59. Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng[54]\n1. Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng được tính từ ngày cơ quan, tổ chức thẩm định nhận đủ hồ sơ hợp lệ.",
+          "positive_answer": "Theo khoản 19, Điều 3 Luật Xây dựng 2014, sửa đổi bổ sung 2020. \nĐiều 3: Giải thích từ ngữ. 19. Giấy phép xây dựng theo giai đoạn là giấy phép xây dựng cấp cho từng phần \ncủa công trình hoặc từng công trình của dự án khi thiết kế xây dựng của công trình hoặc của dự án chưa \nđược thực hiện xong.",
           "negative_answer": ".",
           "source_file": "Luật xây dựng_.xlsx"
         },
         "top_answers": [
           {
             "rank": 1,
-            "score": 0.9781502,
-            "citation": "Điều 1 khoản 3",
+            "score": 0.98553926,
+            "citation": "Điều 1 khoản 3 điểm a)",
             "law_id": "LXAYDUNG",
-            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 3. Đối với dự án đầu tư xây dựng không thuộc quy định tại khoản 2 Điều này, thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng do người quyết định đầu tư xem xét, quyết định. Trường hợp dự án phải thực hiện thẩm định của cơ quan chuyên môn về xây dựng thì thời gian thẩm định của cơ quan chuyên môn về xây dựng được thực hiện theo quy định tại khoản 2 Điều này; riêng dự án quan trọng quốc gia không sử dụng vốn đầu tư công, thời gian thẩm định của cơ quan chuyên môn về xây dựng không quá 80 ngày.”.",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 3 Giấy phép xây dựng gồm, điểm a): Giấy phép xây dựng mới;",
             "metadata": {
               "law_no": "",
               "law_title": "Luật số_ 62_2020_QH14.docx",
@@ -115,19 +29,43 @@
               "article_no": 1,
               "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
               "clause_no": 3,
-              "exact_citation": "Điều 1 khoản 3",
+              "point_letter": "a",
+              "exact_citation": "Điều 1 khoản 3 điểm a)",
+              "clause_intro": "Giấy phép xây dựng gồm:",
               "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
               "source_category": "Bất động sản - Luật xây dựng",
               "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 110
+              "chunk_index": 228
             }
           },
           {
             "rank": 2,
-            "score": 0.97653395,
-            "citation": "Điều 1 khoản 1",
+            "score": 0.98402345,
+            "citation": "Điều 1 khoản 30",
             "law_id": "LXAYDUNG",
-            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 1. Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng, được tính từ ngày cơ quan, tổ chức thẩm định nhận đủ hồ sơ hợp lệ.",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 30. Sửa đổi, bổ sung Điều 89 như sau:\n“Điều 89. Quy định chung về cấp giấy phép xây dựng",
+            "metadata": {
+              "law_no": "",
+              "law_title": "Luật số_ 62_2020_QH14.docx",
+              "law_id": "LXAYDUNG",
+              "chapter": null,
+              "section": null,
+              "article_no": 1,
+              "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
+              "clause_no": 30,
+              "exact_citation": "Điều 1 khoản 30",
+              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
+              "source_category": "Bất động sản - Luật xây dựng",
+              "source_file_name": "Luật số_ 62_2020_QH14.docx",
+              "chunk_index": 216
+            }
+          },
+          {
+            "rank": 3,
+            "score": 0.9831511,
+            "citation": "Điều 1 khoản 1 điểm b)",
+            "law_id": "LXAYDUNG",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 1 Điều kiện chung cấp giấy phép xây dựng có thời hạn gồm, điểm b): Phù hợp với quy mô công trình do Ủy ban nhân dân cấp tỉnh quy định cho từng khu vực và thời hạn tồn tại của công trình theo kế hoạch thực hiện quy hoạch phân khu xây dựng, quy hoạch phân khu xây dựng khu chức năng hoặc quy hoạch chi tiết, quy hoạch chi tiết xây dựng khu chức năng đã được cơ quan nhà nước có thẩm quyền phê duyệt;",
             "metadata": {
               "law_no": "",
               "law_title": "Luật số_ 62_2020_QH14.docx",
@@ -137,19 +75,35 @@
               "article_no": 1,
               "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
               "clause_no": 1,
-              "exact_citation": "Điều 1 khoản 1",
+              "point_letter": "b",
+              "exact_citation": "Điều 1 khoản 1 điểm b)",
+              "clause_intro": "Điều kiện chung cấp giấy phép xây dựng có thời hạn gồm:",
               "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
               "source_category": "Bất động sản - Luật xây dựng",
               "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 105
+              "chunk_index": 238
             }
-          },
+          }
+        ]
+      },
+      {
+        "rank": 2,
+        "query_id": 46,
+        "query": "Dự án đầu tư xây dựng không được sử dụng 1 hoặc nhiều nguồn vốn khác nhau.",
+        "total_score": 14.643289890000002,
+        "question_info": {
+          "category": "Bất động sản - Luật xây dựng",
+          "positive_answer": "Theo khoản 2, điều 49 Luật xây dựng 2014 sửa đổi, bổ sung 2020. Điều 49. Phân loại dự án đầu tư xây dựng. 2. Căn cứ quy mô, mức độ quan trọng, dự án đầu tư xây dựng được phân loại thành dự án quan trọng quốc gia, dự án nhóm A, dự án nhóm B, dự án nhóm C theo tiêu chí quy định của pháp luật về đầu tư công.",
+          "negative_answer": ".",
+          "source_file": "Luật xây dựng_.xlsx"
+        },
+        "top_answers": [
           {
-            "rank": 3,
-            "score": 0.96279633,
+            "rank": 1,
+            "score": 0.9820146,
             "citation": "Điều 1 khoản 2 điểm b)",
             "law_id": "LXAYDUNG",
-            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 2 Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng của dự án sử dụng vốn đầu tư công được quy định như sau, điểm b): Đối với dự án nhóm A, thời gian thẩm định không quá 40 ngày, trong đó thời gian thẩm định của cơ quan chuyên môn về xây dựng không quá 35 ngày;",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 2 Căn cứ nguồn vốn sử dụng cho dự án đầu tư xây dựng, việc xác định chủ đầu tư được quy định như sau, điểm b): Đối với dự án sử dụng vốn nhà nước theo quy định của pháp luật có liên quan (sau đây gọi là dự án sử dụng vốn nhà nước ngoài đầu tư công), chủ đầu tư là cơ quan, tổ chức được người quyết định đầu tư giao quản lý, sử dụng vốn để đầu tư xây dựng;",
             "metadata": {
               "law_no": "",
               "law_title": "Luật số_ 62_2020_QH14.docx",
@@ -161,81 +115,81 @@
               "clause_no": 2,
               "point_letter": "b",
               "exact_citation": "Điều 1 khoản 2 điểm b)",
-              "clause_intro": "Thời gian thẩm định Báo cáo nghiên cứu khả thi đầu tư xây dựng của dự án sử dụng vốn đầu tư công được quy định như sau:",
+              "clause_intro": "Căn cứ nguồn vốn sử dụng cho dự án đầu tư xây dựng, việc xác định chủ đầu tư được quy định như sau:",
               "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
               "source_category": "Bất động sản - Luật xây dựng",
               "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 107
+              "chunk_index": 21
+            }
+          },
+          {
+            "rank": 2,
+            "score": 0.9806481,
+            "citation": "Điều 1 khoản 4 điểm b)",
+            "law_id": "LXAYDUNG",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 4 Căn cứ nguồn vốn sử dụng và hình thức đầu tư, dự án đầu tư xây dựng được phân loại thành các dự án sau, điểm b): Dự án sử dụng vốn nhà nước ngoài đầu tư công;",
+            "metadata": {
+              "law_no": "",
+              "law_title": "Luật số_ 62_2020_QH14.docx",
+              "law_id": "LXAYDUNG",
+              "chapter": null,
+              "section": null,
+              "article_no": 1,
+              "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
+              "clause_no": 4,
+              "point_letter": "b",
+              "exact_citation": "Điều 1 khoản 4 điểm b)",
+              "clause_intro": "Căn cứ nguồn vốn sử dụng và hình thức đầu tư, dự án đầu tư xây dựng được phân loại thành các dự án sau:",
+              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
+              "source_category": "Bất động sản - Luật xây dựng",
+              "source_file_name": "Luật số_ 62_2020_QH14.docx",
+              "chunk_index": 43
+            }
+          },
+          {
+            "rank": 3,
+            "score": 0.98044944,
+            "citation": "Điều 1 khoản 2 điểm đ)",
+            "law_id": "LXAYDUNG",
+            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 2 Căn cứ nguồn vốn sử dụng cho dự án đầu tư xây dựng, việc xác định chủ đầu tư được quy định như sau, điểm đ): Đối với dự án không thuộc trường hợp quy định tại các điểm a, b, c và d khoản này, chủ đầu tư là tổ chức, cá nhân bỏ vốn để đầu tư xây dựng.",
+            "metadata": {
+              "law_no": "",
+              "law_title": "Luật số_ 62_2020_QH14.docx",
+              "law_id": "LXAYDUNG",
+              "chapter": null,
+              "section": null,
+              "article_no": 1,
+              "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
+              "clause_no": 2,
+              "point_letter": "đ",
+              "exact_citation": "Điều 1 khoản 2 điểm đ)",
+              "clause_intro": "Căn cứ nguồn vốn sử dụng cho dự án đầu tư xây dựng, việc xác định chủ đầu tư được quy định như sau:",
+              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
+              "source_category": "Bất động sản - Luật xây dựng",
+              "source_file_name": "Luật số_ 62_2020_QH14.docx",
+              "chunk_index": 24
             }
           }
         ]
       },
       {
         "rank": 3,
-        "query_id": 48,
-        "query": "15a. Dự án đầu tư xây dựng khu đô thị phải có công năng hỗn hợp, đồng bộ hạ tầng \nkỹ thuật, hạ tầng xã hội và nhà ở theo quy hoạch được phê duyệt.",
-        "total_score": 13.892616330000001,
+        "query_id": 40,
+        "query": "Hình thức phát triển nhà ở chỉ bao gồm dự án đầu tư xây dựng nhà ở độc lập hoặc cụm công trình nhà ở, không có hình thức nào khác.",
+        "total_score": 14.31585982,
         "question_info": {
-          "category": "Bất động sản - Luật xây dựng",
-          "positive_answer": "Theo khoản 15a, Điều 3 Luật Xây dựng 2014, sửa đổi bổ sung 2020. \nĐiều 3: Giải thích từ ngữ. \n15a.[8] Dự án đầu tư xây dựng khu đô thị là dự án đầu tư xây dựng có công năng phục vụ hỗn hợp, đồng bộ hệ thống hạ tầng kỹ thuật, \nhạ tầng xã hội với nhà ở hoặc công trình xây dựng khác theo quy hoạch đô thị và nông thôn[9] được cấp có thẩm quyền phê duyệt để \nxây dựng mới hoặc cải tạo, chỉnh trang đô thị.",
-          "negative_answer": ".",
-          "source_file": "Luật xây dựng_.xlsx"
+          "category": "Bất động sản - Luật Nhà Ở",
+          "positive_answer": "khoản 1 Điều 30 LNO \"Điều 30. Hình thức phát triển nhà ở\n1. Phát triển nhà ở theo dự án đầu tư xây dựng nhà ở bao gồm:\n\na) Dự án đầu tư xây dựng 01 công trình nhà ở độc lập hoặc 01 cụm công trình nhà ở;\n\nb) Dự án đầu tư xây dựng 01 công trình nhà ở có mục đích sử dụng hỗn hợp hoặc 01 cụm công trình nhà ở có mục đích sử dụng hỗn hợp;\n\nc) Dự án đầu tư xây dựng khu nhà ở đồng bộ việc xây dựng nhà ở với công trình hạ tầng kỹ thuật, hạ tầng xã hội và các công trình khác phục vụ nhu cầu ở;\n\nd) Dự án đầu tư xây dựng kết cấu hạ tầng khu nhà ở để chuyển nhượng quyền sử dụng đất cho cá nhân tự xây dựng nhà ở;\n\nđ) Dự án đầu tư xây dựng khu đô thị có nhà ở;\n\ne) Dự án sử dụng đất kết hợp đa mục đích mà có dành diện tích đất trong dự án để xây dựng nhà ở.\"",
+          "negative_answer": "",
+          "source_file": "Luật nhà ở 2023.xlsx"
         },
         "top_answers": [
           {
             "rank": 1,
-            "score": 0.9876187,
-            "citation": "Điều 1 khoản 1 điểm đ)",
+            "score": 0.98446083,
+            "citation": "Điều 2 khoản 1 điểm a)",
             "law_id": "LXAYDUNG",
-            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 1 Sửa đổi, bổ sung một số khoản của Điều 3 như sau, điểm đ): Bổ sung Khoản 15a vào sau khoản 15 như sau:\n“15a. Dự án đầu tư xây dựng khu đô thị là dự án đầu tư xây dựng có công năng phục vụ hỗn hợp, đồng bộ hệ thống hạ tầng kỹ thuật, hạ tầng xã hội với nhà ở hoặc công trình xây dựng khác theo quy hoạch xây dựng được cấp có thẩm quyền phê duyệt để xây dựng mới hoặc cải tạo, chỉnh trang đô thị.”;",
-            "metadata": {
-              "law_no": "",
-              "law_title": "Luật số_ 62_2020_QH14.docx",
-              "law_id": "LXAYDUNG",
-              "chapter": null,
-              "section": null,
-              "article_no": 1,
-              "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
-              "clause_no": 1,
-              "point_letter": "đ",
-              "exact_citation": "Điều 1 khoản 1 điểm đ)",
-              "clause_intro": "Sửa đổi, bổ sung một số khoản của Điều 3 như sau:",
-              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
-              "source_category": "Bất động sản - Luật xây dựng",
-              "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 4
-            }
-          },
-          {
-            "rank": 2,
-            "score": 0.97992134,
-            "citation": "Điều 1 khoản 46 điểm b)",
-            "law_id": "LXAYDUNG",
-            "content": "Điều 1 Sửa đổi, bổ sung một số điều của Luật Xây dựng Khoản 46 Bổ sung một số điểm, khoản của Điều 124 như sau, điểm b): Bổ sung khoản 5 vào sau khoản 4 như sau:\n“5. Đối với dự án đầu tư xây dựng khu đô thị, ngoài quy định tại các khoản 1, 2, 3 và 4 Điều này, chủ đầu tư có trách nhiệm bàn giao công trình hạ tầng kỹ thuật, hạ tầng xã hội và các công trình khác theo quy định của Chính phủ.”.",
-            "metadata": {
-              "law_no": "",
-              "law_title": "Luật số_ 62_2020_QH14.docx",
-              "law_id": "LXAYDUNG",
-              "chapter": null,
-              "section": null,
-              "article_no": 1,
-              "article_title": "Sửa đổi, bổ sung một số điều của Luật Xây dựng",
-              "clause_no": 46,
-              "point_letter": "b",
-              "exact_citation": "Điều 1 khoản 46 điểm b)",
-              "clause_intro": "Bổ sung một số điểm, khoản của Điều 124 như sau:",
-              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
-              "source_category": "Bất động sản - Luật xây dựng",
-              "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 296
-            }
-          },
-          {
-            "rank": 3,
-            "score": 0.9480322,
-            "citation": "Điều 2 khoản 3",
-            "law_id": "LXAYDUNG",
-            "content": "Điều 2 Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 Khoản 3. Việc đầu tư xây dựng khu đô thị quy định tại điểm b khoản 1 Điều này phải tuân thủ quy định về nhà ở theo pháp luật về nhà ở và pháp luật có liên quan.”.",
+            "content": "Điều 2 Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 Khoản 1 Hình thức phát triển nhà ở bao gồm, điểm a): Phát triển nhà ở theo dự án đầu tư xây dựng nhà ở;",
             "metadata": {
               "law_no": "",
               "law_title": "Luật số_ 62_2020_QH14.docx",
@@ -244,12 +198,59 @@
               "section": null,
               "article_no": 2,
               "article_title": "Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14",
-              "clause_no": 3,
-              "exact_citation": "Điều 2 khoản 3",
+              "clause_no": 1,
+              "point_letter": "a",
+              "exact_citation": "Điều 2 khoản 1 điểm a)",
+              "clause_intro": "Hình thức phát triển nhà ở bao gồm:",
               "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
               "source_category": "Bất động sản - Luật xây dựng",
               "source_file_name": "Luật số_ 62_2020_QH14.docx",
-              "chunk_index": 366
+              "chunk_index": 359
+            }
+          },
+          {
+            "rank": 2,
+            "score": 0.9823067,
+            "citation": "Điều 2 khoản 1 điểm b)",
+            "law_id": "LXAYDUNG",
+            "content": "Điều 2 Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14 Khoản 1 Hình thức phát triển nhà ở bao gồm, điểm b): Phát triển nhà ở theo dự án đầu tư xây dựng khu đô thị;",
+            "metadata": {
+              "law_no": "",
+              "law_title": "Luật số_ 62_2020_QH14.docx",
+              "law_id": "LXAYDUNG",
+              "chapter": null,
+              "section": null,
+              "article_no": 2,
+              "article_title": "Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14",
+              "clause_no": 1,
+              "point_letter": "b",
+              "exact_citation": "Điều 2 khoản 1 điểm b)",
+              "clause_intro": "Hình thức phát triển nhà ở bao gồm:",
+              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
+              "source_category": "Bất động sản - Luật xây dựng",
+              "source_file_name": "Luật số_ 62_2020_QH14.docx",
+              "chunk_index": 360
+            }
+          },
+          {
+            "rank": 3,
+            "score": 0.9819594,
+            "citation": "Điều 2",
+            "law_id": "LXAYDUNG",
+            "content": "Điều 2. Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14\nSửa đổi, bổ sung Điều 17 như sau:\n“Điều 17. Hình thức phát triển nhà ở, dự án đầu tư xây dựng nhà ở",
+            "metadata": {
+              "law_no": "",
+              "law_title": "Luật số_ 62_2020_QH14.docx",
+              "law_id": "LXAYDUNG",
+              "chapter": null,
+              "section": null,
+              "article_no": 2,
+              "article_title": "Sửa đổi, bổ sung Điều 17 của Luật Nhà ở số 65/2014/QH13 đã được sửa đổi, bổ sung một số điều theo Luật số 40/2019/QH14",
+              "exact_citation": "Điều 2",
+              "source_file": "law_content\\Bất động sản\\Luật xây dựng\\Luật_\\Luật số_ 62_2020_QH14.docx",
+              "source_category": "Bất động sản - Luật xây dựng",
+              "source_file_name": "Luật số_ 62_2020_QH14.docx",
+              "chunk_index": 358
             }
           }
         ]

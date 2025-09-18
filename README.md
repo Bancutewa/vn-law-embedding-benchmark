@@ -233,6 +233,25 @@ vn-law-embedding-benchmark/
 - **GPU:** Optional (CUDA support)
 - **Storage:** 2GB+ cho models
 
+## 🛠️ Utility Scripts
+
+### Interactive Query Testing
+
+```bash
+# Test query với model được chọn (interactive)
+python utilities/test_query.py
+
+# Demo query testing (không cần input)
+python utilities/demo_query_test.py
+```
+
+### View Results
+
+```bash
+# Xem top queries analysis
+python utilities/view_top_queries.py
+```
+
 ## 📝 Example Queries
 
 ```

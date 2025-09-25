@@ -65,31 +65,84 @@ def chapter_to_int(s: str) -> Optional[int]:
 
 def read_docx(file_path: str) -> str:
     """Đọc file docx và trả về text (hỗ trợ cả .doc và .docx)"""
-    print(f"   Reading file: {file_path}")
+    safe_path = file_path.encode('ascii', 'ignore').decode('ascii') or file_path
+    print(f"   Reading file: {safe_path}")
+
+    # Kiểm tra extension
+    file_ext = file_path.lower().split('.')[-1] if '.' in file_path else ''
 
     try:
         # Thử đọc bằng python-docx trước (cho file .docx thực sự)
         from docx import Document
         doc = Document(file_path)
         text = "\n".join((p.text or "").strip() for p in doc.paragraphs)
-        print(f"   ✅ Successfully read {len(text):,} characters using python-docx")
-        return text
+        if text and len(text.strip()) > 10:  # Kiểm tra có nội dung thực sự
+            print(f"   Successfully read {len(text):,} characters using python-docx")
+            return text
+        else:
+            print(f"   WARNING: python-docx returned minimal content, trying alternatives...")
     except Exception as e1:
-        print(f"   ⚠️ python-docx failed: {e1}")
+        safe_e1 = str(e1).encode('ascii', 'ignore').decode('ascii') or str(e1)
+        print(f"   WARNING: python-docx failed: {safe_e1}")
 
-        # Nếu file có extension .docx nhưng thực tế là .doc, thử dùng docx2txt
+    # Thử dùng docx2txt cho .docx
+    try:
+        import docx2txt
+        text = docx2txt.process(file_path)
+        if text and len(text.strip()) > 10:
+            print(f"   Successfully read {len(text):,} characters using docx2txt")
+            return text
+        else:
+            print(f"   WARNING: docx2txt returned minimal content")
+    except Exception as e2:
+        safe_e2 = str(e2).encode('ascii', 'ignore').decode('ascii') or str(e2)
+        print(f"   WARNING: docx2txt failed: {safe_e2}")
+
+    # Thử dùng textract cho cả .doc và .docx
+    try:
+        import textract
+        text = textract.process(file_path).decode('utf-8', errors='ignore')
+        if text and len(text.strip()) > 10:
+            print(f"   Successfully read {len(text):,} characters using textract")
+            return text
+        else:
+            print(f"   WARNING: textract returned minimal content")
+    except Exception as e3:
+        safe_e3 = str(e3).encode('ascii', 'ignore').decode('ascii') or str(e3)
+        print(f"   WARNING: textract failed: {safe_e3}")
+
+    # Thử dùng pypandoc cho cả .doc và .docx
+    try:
+        import pypandoc
+        text = pypandoc.convert_file(file_path, 'plain', extra_args=['--wrap=none'])
+        if text and len(text.strip()) > 10:
+            print(f"   Successfully read {len(text):,} characters using pypandoc")
+            return text
+        else:
+            print(f"   WARNING: pypandoc returned minimal content")
+    except Exception as e4:
+        safe_e4 = str(e4).encode('ascii', 'ignore').decode('ascii') or str(e4)
+        print(f"   WARNING: pypandoc failed: {safe_e4}")
+
+    # Cuối cùng thử dùng subprocess với antiword (cho .doc)
+    if file_ext == 'doc':
         try:
-            import docx2txt
-            text = docx2txt.process(file_path)
-            if text and len(text.strip()) > 0:
-                print(f"   ✅ Successfully read {len(text):,} characters using docx2txt")
-                return text
+            import subprocess
+            result = subprocess.run(['antiword', file_path, '-w', '0'],
+                                  capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and result.stdout and len(result.stdout.strip()) > 10:
+                print(f"   Successfully read {len(result.stdout):,} characters using antiword")
+                return result.stdout
             else:
-                print(f"   ❌ docx2txt returned empty content")
-                return ""
-        except Exception as e2:
-            print(f"   ❌ docx2txt also failed: {e2}")
-            return ""
+                print(f"   WARNING: antiword failed or returned minimal content")
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e5:
+            safe_e5 = str(e5).encode('ascii', 'ignore').decode('ascii') or str(e5)
+            print(f"   WARNING: antiword failed: {safe_e5}")
+
+    # Nếu tất cả đều thất bại
+    safe_path = file_path.encode('ascii', 'ignore').decode('ascii') or file_path
+    print(f"   ERROR: All reading methods failed for {safe_path}")
+    return ""
 
 def normalize_lines(text: str) -> List[str]:
     """Normalize lines for more robust header matching:
@@ -114,14 +167,11 @@ def normalize_lines(text: str) -> List[str]:
         # Trim trailing whitespace
         ln = re.sub(r'\s+$', '', ln)
         out.append(ln)
-    print(f"   ✅ Normalized {len(out):,} lines with Unicode NFC normalization")
+    print(f"   Normalized {len(out):,} lines with Unicode NFC normalization")
     return out
 
-def generate_law_id(file_name: str) -> str:
-    """Tự động sinh law_id từ tên file"""
-    # Loại bỏ extension và chuẩn hóa
-    name = file_name.replace('.docx', '').replace('.doc', '').strip()
-
+def generate_law_id_from_name(name: str) -> str:
+    """Helper function để tạo law_id từ tên đã chuẩn hóa"""
     # Từ điển mapping cho các loại luật phổ biến
     law_mappings = {
         'kinh doanh bất động sản': 'LKBDS',
@@ -134,42 +184,38 @@ def generate_law_id(file_name: str) -> str:
         'thuế sử dụng đất phi nông nghiệp': 'LTSDDPHINONGNGHIEP',
         'xây dựng': 'LXAYDUNG',
         'hôn nhân và gia đình': 'LHNVDG',
+        'luat_hon_nhan_gia_dinh_2014': 'LHNVDG',
+        'sở hữu trí tuệ': 'LSHTT',
     }
 
-    # Chuẩn hóa tên để matching
-    name_lower = name.lower()
+    name_lower = name.lower().replace('_', ' ')
 
     # Tìm mapping phù hợp
     for key, value in law_mappings.items():
-        if key in name_lower:
+        # Chuẩn hóa key để loại bỏ dấu cho matching
+        import unicodedata
+        key_normalized = unicodedata.normalize('NFD', key).encode('ascii', 'ignore').decode('ascii').lower()
+
+        # Check exact match
+        if key in name or key in name_lower or key_normalized in name:
             return value
 
-    # Xử lý các trường hợp đặc biệt
-    if 'luật số' in name_lower and 'qh' in name_lower:
-        # Luật số XX_YYYY_QHZZ -> LXAYDUNG (luật xây dựng)
-        if 'xây dựng' in name_lower:
-            return 'LXAYDUNG'
-        # Các luật khác có thể thêm mapping
-
-    if 'văn bản hợp nhất' in name_lower:
-        # Văn bản hợp nhất Luật XXX -> LDAUTU
-        if 'đầu tư' in name_lower:
-            return 'LDAUTU'
-
-    # Xử lý các file VBHN (Văn bản hợp nhất) có thể là luật xây dựng
-    if name_lower.startswith('vbhn') or 'vbhn' in name_lower:
-        # Thường là luật xây dựng
-        return 'LXAYDUNG'
-
-    # Xử lý luật số không có từ khóa rõ ràng
-    if 'luật số' in name_lower:
-        # Có thể là luật xây dựng nếu không match gì khác
-        return 'LXAYDUNG'
+        # Check từng từ trong key có trong name không (cho trường hợp có thêm từ khác)
+        # Chỉ check nếu key có ít nhất 2 từ để tránh false positive
+        key_words = key.split()
+        if len(key_words) >= 2:
+            key_words_normalized = [unicodedata.normalize('NFD', w).encode('ascii', 'ignore').decode('ascii').lower()
+                                   for w in key_words]
+            # Check whole word với boundary để tránh substring match
+            import re
+            name_normalized = name.lower()
+            cond1 = all(re.search(r'\b' + re.escape(word) + r'\b', name_normalized) for word in key_words)
+            cond2 = all(re.search(r'\b' + re.escape(word) + r'\b', name_normalized) for word in key_words_normalized)
+            if cond1 or cond2:
+                return value
 
     # Nếu không tìm thấy, tạo ID từ chữ cái đầu của các từ quan trọng
-    words = name.split()
-
-    # Lọc bỏ các từ không quan trọng
+    words = re.split(r'[_\s]+', name)
     stop_words = {'số', 'và', 'theo', 'phương', 'thức', 'đối', 'tác', 'công', 'tư', 'luật', 'văn', 'bản', 'hợp', 'nhất', 'năm', 'qđ', 'tt', 'bh', 'vbh', 'vbhn', 'vpqh'}
 
     important_words = []
@@ -194,9 +240,71 @@ def generate_law_id(file_name: str) -> str:
     first_letters = ''.join(w[0].upper() for w in words[:3] if len(w) > 1 and not w.isdigit())
     return f"L{first_letters[:6]}"  # Giới hạn 6 ký tự
 
+def generate_law_id(file_name: str) -> str:
+    """Tự động sinh law_id từ tên file"""
+    # Loại bỏ extension và chuẩn hóa
+    name = file_name.replace('.docx', '').replace('.doc', '').strip()
+
+    # Chuẩn hóa tên để matching (thay dấu gạch dưới bằng space)
+    name_normalized = name.lower().replace('_', ' ')
+    name_lower = name.lower()
+
+    # Xử lý luật sửa đổi, bổ sung
+    amendment_keywords = ['sửa đổi', 'bổ sung', 'sửa đổi, bổ sung']
+    is_amendment = False
+    for keyword in amendment_keywords:
+        if keyword in name_normalized:
+            is_amendment = True
+            break
+
+    if is_amendment:
+        # Tìm tên luật gốc trong phần còn lại
+        amendment_part = None
+        for keyword in amendment_keywords:
+            if keyword in name_normalized:
+                # Tách phần tên luật gốc (phần sau keyword)
+                parts = name_normalized.split(keyword, 1)
+                if len(parts) > 1:
+                    amendment_part = parts[1].strip()
+                    break
+
+        if amendment_part:
+            # Tạo ID cho luật gốc từ amendment_part
+            base_law_id = generate_law_id_from_name(amendment_part)
+            if base_law_id and base_law_id != 'UNKNOWN':
+                return f'LSĐBS{base_law_id}'
+
+        # Fallback: tạo ID sửa đổi chung
+        return 'LSĐBS'
+
+    # Xử lý các trường hợp đặc biệt
+    if 'luật số' in name_lower and 'qh' in name_lower:
+        # Luật số XX_YYYY_QHZZ -> LXAYDUNG (luật xây dựng)
+        if 'xây dựng' in name_lower:
+            return 'LXAYDUNG'
+        # Các luật khác có thể thêm mapping
+
+    if 'văn bản hợp nhất' in name_lower:
+        # Văn bản hợp nhất Luật XXX -> LDAUTU
+        if 'đầu tư' in name_lower:
+            return 'LDAUTU'
+
+    # Xử lý các file VBHN (Văn bản hợp nhất) có thể là luật xây dựng
+    if name_lower.startswith('vbhn') or 'vbhn' in name_lower:
+        # Thường là luật xây dựng
+        return 'LXAYDUNG'
+
+    # Xử lý luật số không có từ khóa rõ ràng
+    if 'luật số' in name_lower:
+        # Có thể là luật xây dựng nếu không match gì khác
+        return 'LXAYDUNG'
+
+    # Nếu không phải luật sửa đổi, tạo ID thông thường
+    return generate_law_id_from_name(name)
+
 def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_title: str = "") -> List[Dict[str, Any]]:
     """Chia văn bản luật thành chunks theo định dạng hn2014_chunks.json"""
-    print("   🔍 Chunking law document with strict parsing...")
+    print("   Chunking law document with strict parsing...")
 
     lines = normalize_lines(text)
 
@@ -388,7 +496,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
         if not article_has_any_chunk and article_intro_buf.strip():
             flush_article_intro()
 
-    print(f"   📄 Processing {len(lines):,} lines...")
+    print(f"   Processing {len(lines):,} lines...")
 
     for line in lines:
         if not line:
@@ -550,7 +658,13 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
 
         # ĐIỂM — chuỗi điểm chỉ bắt đầu nếu mở bằng a)
         m_p = POINT_RE.match(line)
-        if m_p and clause_no is not None:
+        if m_p:
+            # Nếu chưa có khoản, coi như khoản 1 ẩn cho điểm trực tiếp
+            if clause_no is None:
+                clause_no = 1
+                clause_buf = ""
+                clause_intro_current = None
+
             letter = m_p.group(1).lower()
             text = (m_p.group(2) or "").strip()
 
@@ -597,5 +711,5 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
         if len(content) > 50:
             valid_chunks.append(chunk)
 
-    print(f"   ✅ Created {len(valid_chunks)} chunks")
+    print(f"   Created {len(valid_chunks)} chunks")
     return valid_chunks

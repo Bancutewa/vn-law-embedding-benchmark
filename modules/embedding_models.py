@@ -69,7 +69,10 @@ def encode_with_transformers(texts: List[str], model_name: str, max_length: int 
 
 def encode_with_sentence_transformers(texts: List[str], model_name: str, batch_size: int = 32, device: str = "cuda") -> np.ndarray:
     """Encode texts using sentence-transformers library"""
-    from sentence_transformers import SentenceTransformer
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        raise ImportError("sentence-transformers not installed. Install with: pip install sentence-transformers")
 
     print(f"Loading model: {model_name}")
     model = SentenceTransformer(model_name)

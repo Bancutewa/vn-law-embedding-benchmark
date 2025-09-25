@@ -2,6 +2,192 @@
 
 Phiên bản tái cấu trúc của dự án đánh giá embedding cho luật tiếng Việt với code được tổ chức thành modules.
 
+## 🚀 Cập nhật luồng chạy mới (24/09/2025)
+
+### Luồng mới với tổ chức theo bộ luật
+
+#### Bước 1: Tạo danh sách file luật theo category
+
+```bash
+python find_law_files.py
+```
+
+- Tạo file tổng hợp: `data_files/law_file_paths.json`
+- Tạo file riêng biệt theo category:
+  - `data_files/BDS/bds_file_paths.json` (Bất động sản - 7 files)
+  - `data_files/DN/dn_file_paths.json` (Doanh nghiệp - 1 file)
+  - `data_files/TM/tm_file_paths.json` (Thương mại - 1 file)
+  - `data_files/QDS/qds_file_paths.json` (Quyền dân sự - 4 files)
+
+#### Bước 2: Chunk theo category cụ thể hoặc file đơn lẻ
+
+```bash
+# Chunk bộ luật Bất động sản
+python chunking.py --category BDS
+
+# Chunk bộ luật Quyền dân sự
+python chunking.py --category QDS
+
+# Chunk một file cụ thể
+python chunking.py --file "law_content/Quyền dân sự_/Luật nuôi con nuôi/Luật_/Luật nuôi con nuôi.docx"
+
+# Chunk tất cả (tương thích ngược)
+python chunking.py
+```
+
+#### Bước 3: Chunk với AI review và tùy chọn nâng cao
+
+```bash
+🤖 Tùy chọn AI Review:
+--AI: Bật Gemini AI thẩm định (default: OFF)
+--max-files-sample N: Files lấy raw text (default: 2)
+--max-chunks-sample N: Chunks gửi AI (default: 50)
+--sample-excerpts N: Ký tự excerpts (default: 2000)
+--api-key "key": Gemini API key
+--strict-ok-only: Chỉ ghi nếu AI "ok"
+🔍 Tùy chọn kiểm tra:
+--verbose / -v: Chi tiết tiến trình
+--validate: Validate chunks quality
+--dry-run: Test không ghi file
+```
+
+```bash
+# Chunk + AI review cơ bản
+python chunking.py --category BDS --AI
+
+# Chunk + AI review với tùy chỉnh sampling
+python chunking.py --category BDS --AI --max-files-sample 2 --max-chunks-sample 50
+
+# Chunk + AI review với verbose output
+python chunking.py --category BDS --AI --verbose
+
+# Chunk + validation (check quality chunks)
+python chunking.py --category BDS --validate
+
+# Dry run (test mà không ghi file)
+python chunking.py --category BDS --dry-run --validate
+```
+
+### 📋 **Giải thích các tùy chọn:**
+
+#### **Tùy chọn cơ bản:**
+
+- `--category BDS/DN/TM/QDS`: Chunk theo bộ luật cụ thể
+- `--file "path/to/file.docx"`: Chunk một file duy nhất
+- Không chỉ định gì: Chunk tất cả categories
+
+#### **🆔 Tính năng thông minh tạo Law ID:**
+
+Script tự động tạo ID pháp luật thông minh:
+
+- **Luật gốc**: `Luật Sở hữu trí tuệ` → `LSHTT`
+- **Luật sửa đổi**: `Luật sửa đổi Luật Sở hữu trí tuệ` → `LSĐBSLSHTT`
+- **Luật bổ sung**: `Luật bổ sung Luật Kinh doanh BĐS` → `LSĐBSLKBDS`
+
+Điều này giúp phân biệt rõ ràng luật gốc và luật sửa đổi/bổ sung!
+
+#### **🤖 Tùy chọn AI Review:**
+
+- `--AI`: Bật Gemini AI để thẩm định chất lượng chunks
+- `--max-files-sample N`: Số files tối đa lấy raw text (default: 2)
+- `--max-chunks-sample N`: Số chunks tối đa gửi AI review (default: 50)
+- `--sample-excerpts N`: Tổng ký tự excerpts từ files (default: 2000)
+- `--api-key "your_key"`: Gemini API key (hoặc set env var)
+- `--strict-ok-only`: Chỉ ghi chunks nếu AI xác nhận "ok"
+
+#### **Tùy chọn kiểm tra và debug:**
+
+- `--verbose` / `-v`: In chi tiết tiến trình chunking và AI review
+- `--validate`: Validate chunks sau khi tạo (check format, metadata)
+- `--dry-run`: Test mode - chạy nhưng không ghi file output
+
+#### **Ví dụ workflow với kiểm tra:**
+
+```bash
+# 1. Test validation trước
+python chunking.py --category BDS --validate --dry-run --verbose
+
+# 2. Chunk với AI review chi tiết
+python chunking.py --category BDS --AI --verbose --max-files-sample 3
+
+# 3. Chunk và validate quality
+python chunking.py --category BDS --AI --validate --strict-ok-only
+```
+
+#### Bước 4: Embedding và upload lên Qdrant
+
+Sau khi có file chunks, embed và upload lên Qdrant:
+
+```bash
+# Embed BDS chunks với model minhquan6203
+python embed_and_upload.py \
+  --chunk-file "data/BDS_chunk_155638_250925.json" \
+  --model "minhquan6203/paraphrase-vietnamese-law" \
+  --category "BDS"
+
+# Embed QDS chunks với model khác
+python embed_and_upload.py \
+  --chunk-file "data/QDS_chunk_151649_250925.json" \
+  --model "sentence-transformers/paraphrase-multilingual-mpnet-base-v2" \
+  --category "QDS"
+
+# Embed TM chunks (dry run để test)
+python embed_and_upload.py \
+  --chunk-file "data/TM_chunk_154949_250925.json" \
+  --model "namnguyenba2003/Vietnamese_Law_Embedding_finetuned_v3_256dims" \
+  --category "TM" \
+  --dry-run
+```
+
+### 🔧 **Cấu hình script embed_and_upload.py:**
+
+#### **Tham số chính (sửa trong code):**
+
+```python
+# Trong embed_and_upload.py - dòng 73-88
+parser.add_argument("--chunk-file", default="data/BDS_chunk_155638_250925.json")  # ←←← SỬA PATH
+parser.add_argument("--model", default="minhquan6203/paraphrase-vietnamese-law") # ←←← SỬA MODEL
+parser.add_argument("--category", default="BDS")                                # ←←← SỬA CATEGORY
+```
+
+#### **Collection naming:**
+
+- Format: `model-name-category`
+- Ví dụ: `minhquan6203-paraphrase-vietnamese-law-BDS`
+- Tự động clean special characters
+
+#### **Models hỗ trợ:**
+
+- **Transformers**: `minhquan6203/paraphrase-vietnamese-law`, `namnguyenba2003/...`
+- **Sentence Transformers**: `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
+
+#### **Ví dụ tái sử dụng:**
+
+```bash
+# Cho QDS
+python embed_and_upload.py --chunk-file "data/QDS_chunk_xxx.json" --category "QDS"
+
+# Cho TM
+python embed_and_upload.py --chunk-file "data/TM_chunk_xxx.json" --category "TM"
+
+# Model khác
+python embed_and_upload.py --model "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+```
+
+### File output
+
+- Chunk theo category: `data/[CATEGORY]_chunk_[timestamp].json`
+- Ví dụ: `data/BDS_chunk_174902_240925.json`, `data/QDS_chunk_174907_240925.json`
+
+### Ưu điểm
+
+- ✅ Tổ chức file theo bộ luật rõ ràng
+- ✅ Dễ quản lý và import lên Qdrant theo category
+- ✅ Tương thích ngược với luồng cũ
+- ✅ Chunk từng category một để kiểm soát tốt hơn
+- ✅ Chunk file đơn lẻ để test và debug nhanh
+- ✅ File paths được tách riêng theo từng bộ luật
+
 ## 🏗️ Cấu trúc dự án (Refactored)
 
 ```

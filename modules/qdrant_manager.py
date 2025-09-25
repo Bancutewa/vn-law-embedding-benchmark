@@ -9,6 +9,8 @@ import os
 import time
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct

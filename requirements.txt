@@ -15,6 +15,9 @@ sentence-transformers
 
 # Document processing
 python-docx
+docx2txt
+textract
+pypandoc
 
 # Data science utilities
 scikit-learn

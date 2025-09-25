@@ -11,6 +11,7 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
+from typing import List, Dict, Any
 
 # For AI functionality
 try:
@@ -205,25 +206,101 @@ def call_gemini_review(payload: dict, api_key: str = None) -> dict:
 def load_law_file_paths(json_path="data_files/law_file_paths.json"):
     """Load danh sách file luật từ JSON"""
     if not os.path.exists(json_path):
-        print(f"❌ Law file paths JSON not found: {json_path}")
+        print(f"ERROR: Law file paths JSON not found: {json_path}")
         print("   Please run find_law_files.py first")
         return []
 
-    print(f"📖 Loading law file paths from: {json_path}")
+    print(f"Loading law file paths from: {json_path}")
 
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             law_file_paths = json.load(f)
-        print(f"✅ Loaded {len(law_file_paths)} law file paths")
+        print(f"Loaded {len(law_file_paths)} law file paths")
         return law_file_paths
     except Exception as e:
-        print(f"❌ Error loading {json_path}: {e}")
+        print(f"ERROR loading {json_path}: {e}")
         return []
+
+def validate_chunks(chunks, verbose=False):
+    """Validate chunks sau khi tạo"""
+    if verbose:
+        print(f"\n🔍 Validating {len(chunks)} chunks...")
+
+    validation_results = {
+        "total_chunks": len(chunks),
+        "valid_chunks": 0,
+        "invalid_chunks": 0,
+        "issues": []
+    }
+
+    required_fields = ["id", "content", "metadata"]
+    required_metadata = ["law_id", "article_no", "source_file"]
+
+    for i, chunk in enumerate(chunks):
+        is_valid = True
+        issues = []
+
+        # Check required fields
+        for field in required_fields:
+            if field not in chunk:
+                issues.append(f"Missing field: {field}")
+                is_valid = False
+
+        # Check metadata
+        if "metadata" in chunk:
+            metadata = chunk["metadata"]
+            for field in required_metadata:
+                if field not in metadata:
+                    issues.append(f"Missing metadata field: {field}")
+                    is_valid = False
+
+            # Check content length
+            if len(chunk.get("content", "")) < 50:
+                issues.append("Content too short (< 50 chars)")
+                is_valid = False
+
+            # Check ID format
+            chunk_id = chunk.get("id", "")
+            if not chunk_id or len(chunk_id.split("-")) < 2:
+                issues.append("Invalid ID format")
+                is_valid = False
+
+        if is_valid:
+            validation_results["valid_chunks"] += 1
+        else:
+            validation_results["invalid_chunks"] += 1
+            validation_results["issues"].append({
+                "chunk_index": i,
+                "chunk_id": chunk.get("id", "unknown"),
+                "issues": issues
+            })
+
+            if verbose and issues:
+                print(f"  ⚠️ Chunk {i} ({chunk.get('id', 'unknown')}): {', '.join(issues)}")
+
+    if verbose:
+        print(f"✅ Validation complete: {validation_results['valid_chunks']} valid, {validation_results['invalid_chunks']} invalid")
+
+    return validation_results
+
+def load_law_file_paths_by_category(category_folder):
+    """Load danh sách file luật từ category-specific JSON"""
+    folder_mapping = {
+        "BDS": "BDS",
+        "DN": "DN",
+        "TM": "TM",
+        "QDS": "QDS"
+    }
+
+    folder_name = folder_mapping.get(category_folder.upper(), category_folder.upper())
+    json_path = f"data_files/{folder_name}/{folder_name.lower()}_file_paths.json"
+
+    return load_law_file_paths(json_path)
 
 def chunk_all_law_documents(law_file_paths):
     """Chunk tất cả văn bản luật từ danh sách file paths"""
 
-    print(f"\n🔍 Starting to chunk {len(law_file_paths)} law documents...")
+    print(f"\nStarting to chunk {len(law_file_paths)} law documents...")
 
     all_chunks = []
     successful_chunks = 0
@@ -239,32 +316,36 @@ def chunk_all_law_documents(law_file_paths):
         category = file_info['category']
         file_name = file_info['file_name']
 
-        print(f"\n📄 [{i+1}/{len(law_file_paths)}] Processing: {file_name}")
-        print(f"   Category: {category}")
-        print(f"   Path: {file_path}")
+        # Sanitize strings for console output
+        safe_filename = file_name.encode('ascii', 'ignore').decode('ascii') or file_name
+        safe_category = str(category).encode('ascii', 'ignore').decode('ascii') or str(category)
+        safe_path = str(file_path).encode('ascii', 'ignore').decode('ascii') or str(file_path)
+        print(f"\n[{i+1}/{len(law_file_paths)}] Processing: {safe_filename}")
+        print(f"   Category: {safe_category}")
+        print(f"   Path: {safe_path}")
 
         if not os.path.exists(file_path):
-            print(f"   ❌ File not found: {file_path}")
+            print(f"   ERROR: File not found: {file_path}")
             failed_files += 1
             continue
 
         try:
             # Bước 1: Đọc file
-            print("   📖 Reading file...")
+            print("   Reading file...")
             raw_text = read_docx(file_path)
 
             if not raw_text or len(raw_text.strip()) < 100:
-                print(f"   ⚠️ File seems empty or too short: {len(raw_text)} characters")
-                print("   ⏭️ Skipping file (cannot read content)")
+                print(f"   WARNING: File seems empty or too short: {len(raw_text)} characters")
+                print("   Skipping file (cannot read content)")
                 failed_files += 1
                 continue
 
             # Bước 2: Tạo law_id từ tên file
             law_id = generate_law_id(file_name)
-            print(f"   📋 Generated law_id: {law_id}")
+            print(f"   Generated law_id: {law_id}")
 
             # Bước 3: Chunk document
-            print("   🔨 Chunking document...")
+            print("   Chunking document...")
             chunks = chunk_law_document(
                 text=raw_text,
                 law_id=law_id,
@@ -273,12 +354,12 @@ def chunk_all_law_documents(law_file_paths):
             )
 
             if not chunks:
-                print("   ⚠️ No chunks created from file")
+                print("   WARNING: No chunks created from file")
                 failed_files += 1
                 continue
 
             # Bước 4: Thêm metadata và chuẩn bị cho save
-            print("   🗂️ Preparing chunks...")
+            print("   Preparing chunks...")
             for j, chunk in enumerate(chunks):
                 # Thêm thông tin về file gốc vào metadata
                 chunk_metadata = chunk.get('metadata', {}).copy()
@@ -308,21 +389,22 @@ def chunk_all_law_documents(law_file_paths):
                     else:
                         articles_count += 1
 
-            print(f"   ✅ Successfully processed {len(chunks)} chunks")
+            print(f"   Successfully processed {len(chunks)} chunks")
             successful_chunks += len(chunks)
 
         except Exception as e:
-            print(f"   ❌ Error processing file: {e}")
+            safe_error = str(e).encode('ascii', 'ignore').decode('ascii') or str(e)
+            print(f"   ERROR: Error processing file: {safe_error}")
             failed_files += 1
             continue
 
-    print(f"\n📊 Chunking Summary:")
-    print(f"   ✅ Successfully chunked: {len(law_file_paths) - failed_files} files")
-    print(f"   ❌ Failed to process: {failed_files} files")
-    print(f"   📄 Total chunks created: {len(all_chunks)}")
+    print(f"\nSummary:")
+    print(f"   Successfully chunked: {len(law_file_paths) - failed_files} files")
+    print(f"   Failed to process: {failed_files} files")
+    print(f"   Total chunks created: {len(all_chunks)}")
 
     if all_chunks:
-        print(f"   📊 Average chunk length: {sum(len(c['content']) for c in all_chunks) // len(all_chunks):.0f} characters")
+        print(f"   Average chunk length: {sum(len(c['content']) for c in all_chunks) // len(all_chunks):.0f} characters")
 
         # Thống kê theo category
         category_counts = {}
@@ -330,7 +412,7 @@ def chunk_all_law_documents(law_file_paths):
             category = chunk.get('metadata', {}).get('source_category', 'Unknown')
             category_counts[category] = category_counts.get(category, 0) + 1
 
-        print("\n📈 Chunks distribution by category:")
+        print("\nDistribution by category:")
         for category, count in category_counts.items():
             print(f"   - {category}: {count} chunks")
 
@@ -355,22 +437,40 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(
         description="Chunk luật Việt Nam + (tuỳ chọn) gọi Gemini để thẩm định (--AI).\n"
-        "AI review sử dụng sampling thông minh để tránh vượt token limit.",
+        "AI review sử dụng sampling thông minh để tránh vượt token limit.\n\n"
+        "EXAMPLES:\n"
+        "  python chunking.py --category BDS                    # Chunk BDS category\n"
+        "  python chunking.py --file path/to/file.docx         # Chunk single file\n"
+        "  python chunking.py --category BDS --AI --verbose    # Chunk + AI review với chi tiết\n"
+        "  python chunking.py --validate --dry-run             # Test validation mà không ghi file\n\n"
+        "WORKFLOW:\n"
+        "  1. find_law_files.py  -> Tạo file paths theo category\n"
+        "  2. chunking.py        -> Chunk documents thành chunks\n"
+        "  3. main_refactored.py -> Evaluate và upload lên Qdrant",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--AI", action="store_true", help="BẬT gọi Gemini (mặc định KHÔNG gọi).")
-    parser.add_argument("--sample-excerpts", type=int, default=2000, help="Tổng ký tự excerpts từ TẤT CẢ files gửi Gemini (mặc định 2000, giảm từ 8000).")
-    parser.add_argument("--max-chunks-sample", type=int, default=50, help="Số chunks tối đa sample để AI review (mặc định 50, giảm từ 1200).")
-    parser.add_argument("--max-files-sample", type=int, default=2, help="Số files tối đa lấy raw text để AI review (mặc định 2, giảm từ 5).")
+    parser.add_argument("--AI", action="store_true", help="BẬT gọi Gemini để thẩm định chunks (mặc định KHÔNG gọi).")
+    parser.add_argument("--sample-excerpts", type=int, default=2000, help="Tổng ký tự excerpts từ files gửi Gemini (mặc định 2000).")
+    parser.add_argument("--max-chunks-sample", type=int, default=50, help="Số chunks tối đa sample để AI review (mặc định 50).")
+    parser.add_argument("--max-files-sample", type=int, default=2, help="Số files tối đa lấy raw text để AI review (mặc định 2).")
     parser.add_argument("--strict-ok-only", action="store_true", help="Chỉ ghi chunks nếu Gemini trả 'ok' (chỉ khi --AI).")
     parser.add_argument("--api-key", help="Gemini API key (hoặc set GEMINI_API_KEY env var).")
+    parser.add_argument("--category", help="Chunk theo category cụ thể (BDS, DN, TM, QDS). Nếu không chỉ định, chunk tất cả.")
+    parser.add_argument("--file", help="Chunk một file cụ thể. Khi sử dụng --file, --category sẽ bị ignore.")
+    parser.add_argument("--verbose", "-v", action="store_true", help="In chi tiết tiến trình chunking và AI review.")
+    parser.add_argument("--validate", action="store_true", help="Validate chunks sau khi tạo (check format, metadata).")
+    parser.add_argument("--dry-run", action="store_true", help="Test mode: chạy nhưng không ghi file output.")
 
     args = parser.parse_args()
 
     print("=" * 80)
-    print("🔨 VIETNAMESE LAW DOCUMENT CHUNKING")
+    print("VIETNAMESE LAW DOCUMENT CHUNKING")
     if args.AI:
-        print("🤖 WITH AI REVIEW ENABLED")
+        print("WITH AI REVIEW ENABLED")
+    if args.dry_run:
+        print("DRY RUN MODE - No files will be written")
+    if args.verbose:
+        print("VERBOSE MODE - Detailed progress output")
     print("=" * 80)
 
     # Load .env if available
@@ -378,21 +478,74 @@ def main():
         load_dotenv()
 
     # 1. Load danh sách file luật
-    law_file_paths = load_law_file_paths()
+    if args.file:
+        safe_file = args.file.encode('ascii', 'ignore').decode('ascii') or args.file
+        print(f"Chunking single file: {safe_file}")
+        # Tạo file path info từ file cụ thể
+        import os
+        if os.path.exists(args.file):
+            file_name = os.path.basename(args.file)
+            # Tạo info tương tự như trong file paths
+            law_file_paths = [{
+                'path': args.file,
+                'relative_path': args.file,  # Có thể cần điều chỉnh
+                'category': 'Single File',
+                'file_name': file_name,
+                'extension': '.' + file_name.split('.')[-1] if '.' in file_name else ''
+            }]
+        else:
+            print(f"ERROR: File not found: {args.file}")
+            return
+    elif args.category:
+        print(f"Chunking category: {args.category}")
+        law_file_paths = load_law_file_paths_by_category(args.category)
+    else:
+        print("Chunking all categories")
+        law_file_paths = load_law_file_paths()
 
     if not law_file_paths:
-        print("❌ Cannot proceed without law file paths!")
-        print("   Run find_law_files.py first")
+        print("ERROR: Cannot proceed without law file paths!")
+        if args.file:
+            print(f"   File not found: {args.file}")
+        elif args.category:
+            print(f"   Make sure category '{args.category}' exists and find_law_files.py has been run")
+        else:
+            print("   Run find_law_files.py first")
         return
 
     # 2. Chunk tất cả documents
+    if args.verbose:
+        print(f"\n📄 Starting to process {len(law_file_paths)} law documents...")
+
     all_chunks, summary = chunk_all_law_documents(law_file_paths)
+
+    if args.verbose:
+        print(f"\n📊 Chunking completed: {len(all_chunks)} total chunks")
+        print(f"   - Articles: {summary.get('articles', 0)}")
+        print(f"   - Clauses: {summary.get('clauses', 0)}")
+        print(f"   - Points: {summary.get('points', 0)}")
+
+    # Validate chunks if requested
+    if args.validate:
+        validation = validate_chunks(all_chunks, args.verbose)
+        if validation["invalid_chunks"] > 0:
+            print(f"\n⚠️ Found {validation['invalid_chunks']} invalid chunks!")
+            if not args.verbose:
+                print(f"   Use --verbose to see details, or check validation summary")
+        else:
+            print(f"\n✅ All {validation['valid_chunks']} chunks are valid!")
+
+    if args.dry_run:
+        print(f"\n🔍 DRY RUN: Would save {len(all_chunks)} chunks to file")
+        print("   Skipping file output (--dry-run enabled)")
+        return
 
     # Thu thập raw text cho AI review (nếu bật AI)
     raw_texts = []
     if args.AI:
-        print(f"\n📖 Collecting raw texts for AI review (max {args.max_files_sample} files)...")
+        print(f"\nCollecting raw texts for AI review (max {args.max_files_sample} files)...")
         files_sampled = 0
+        import os  # Ensure os is available in this scope
         for file_info in law_file_paths:
             if files_sampled >= args.max_files_sample:
                 break
@@ -404,44 +557,62 @@ def main():
                         # Giới hạn 5k chars mỗi file thay vì 10k
                         raw_texts.append(raw_text[:5000])
                         files_sampled += 1
-                        print(f"   📄 Sampled file {files_sampled}: {file_info['file_name']} ({len(raw_text)} chars)")
+                        safe_filename = file_info['file_name'].encode('ascii', 'ignore').decode('ascii') or file_info['file_name']
+                        print(f"   Sampled file {files_sampled}: {safe_filename} ({len(raw_text)} chars)")
                 except Exception as e:
-                    print(f"   ⚠️ Failed to read {file_info['file_name']}: {e}")
+                    safe_filename = file_info['file_name'].encode('ascii', 'ignore').decode('ascii') or file_info['file_name']
+                    safe_error = str(e).encode('ascii', 'ignore').decode('ascii') or str(e)
+                    print(f"   WARNING: Failed to read {safe_filename}: {safe_error}")
                     continue
-        print(f"   ✅ Collected raw text excerpts from {len(raw_texts)} files (total ~{sum(len(t) for t in raw_texts)} chars)")
+        print(f"   Collected raw text excerpts from {len(raw_texts)} files (total ~{sum(len(t) for t in raw_texts)} chars)")
 
     if not all_chunks:
-        print("❌ No chunks were created!")
+        print("Failed: No chunks were created!")
         return
 
     # 3. Save chunks ra JSON
-    # Tạo tên file theo format: chunk_Giờphútgiây_ngàythángnăm(2 số cuối)
+    # Tạo tên file theo format: [PREFIX_]chunk_Giờphútgiây_ngàythángnăm(2 số cuối)
     now = datetime.now()
     timestamp = now.strftime("%H%M%S_%d%m%y")  # HHMMSS_DDMMYY
-    chunks_json_path = f"data/chunk_{timestamp}.json"
-    print(f"\n💾 Saving {len(all_chunks)} chunks to {chunks_json_path}...")
+
+    if args.file:
+        # Tạo prefix từ tên file (không có extension)
+        file_name = os.path.basename(args.file)
+        prefix = file_name.replace('.doc', '').replace('.docx', '').replace(' ', '_')[:30]  # Giới hạn độ dài
+        chunks_json_path = f"data/{prefix}_chunk_{timestamp}.json"
+    elif args.category:
+        chunks_json_path = f"data/{args.category}_chunk_{timestamp}.json"
+    else:
+        chunks_json_path = f"data/chunk_{timestamp}.json"
+    safe_path = chunks_json_path.encode('ascii', 'ignore').decode('ascii') or chunks_json_path
+    print(f"\nSaving {len(all_chunks)} chunks to {safe_path}...")
 
     try:
         # Tạo thư mục data nếu chưa có
         Path("data").mkdir(exist_ok=True)
 
         save_chunks_to_json(all_chunks, chunks_json_path)
-        print(f"✅ Successfully saved {len(all_chunks)} chunks to {chunks_json_path}")
+        safe_path = chunks_json_path.encode('ascii', 'ignore').decode('ascii') or chunks_json_path
+        print(f"Successfully saved {len(all_chunks)} chunks to {safe_path}")
         print("   (Similar to hn2014_chunks.json format)")
 
     except Exception as e:
-        print(f"❌ Error saving chunks: {e}")
+        print(f"ERROR: Error saving chunks: {e}")
         return
 
     # Nếu KHÔNG bật --AI: kết thúc tại đây
     if not args.AI:
-        print(f"\n🎉 Chunking completed successfully!")
-        print(f"   📄 Total chunks: {len(all_chunks)}")
-        print(f"   💾 Output file: {chunks_json_path}")
-        print(f"\nNext: Run main_refactored.py to evaluate with chunks from {chunks_json_path}")
+        safe_path = chunks_json_path.encode('ascii', 'ignore').decode('ascii') or chunks_json_path
+        print(f"\nCompleted successfully!")
+        print(f"   Total chunks: {len(all_chunks)}")
+        print(f"   Output file: {safe_path}")
+        print(f"\nNext: Run main_refactored.py to evaluate with chunks from {safe_path}")
         return
 
     # ===== Khi --AI bật: gọi Gemini để thẩm định =====
+    if args.verbose:
+        print(f"\n🤖 Preparing AI review payload...")
+
     payload = build_review_payload(
         chunks=all_chunks,
         summary=summary,
@@ -450,21 +621,27 @@ def main():
         max_chunks_sample=args.max_chunks_sample
     )
 
-    print(f"\n🤖 GỌI GEMINI (gemini-1.5-flash) ĐÁNH GIÁ CHUNKING =====")
-    print(f"   📊 Sending: {len(payload['chunks_preview'])} sampled chunks + {len(raw_texts)} file excerpts")
-    print(f"   💾 Payload size estimate: ~{len(str(payload)) // 1000}KB")
+    print(f"\nAI: Calling GEMINI (gemini-1.5-flash) for chunking review =====")
+    print(f"   Sending: {len(payload['chunks_preview'])} sampled chunks + {len(raw_texts)} file excerpts")
+    print(f"   Payload size estimate: ~{len(str(payload)) // 1000}KB")
+
+    if args.verbose:
+        print(f"   📊 Summary stats: {payload['summary']}")
+        print(f"   📄 Excerpts length: {len(payload['excerpts'])} chars")
+        print(f"   🎯 Note: {payload['note']}")
     try:
         review = call_gemini_review(payload, args.api_key)
     except Exception as e:
-        print(f"❌ Lỗi gọi Gemini: {e}", file=sys.stderr)
+        print(f"ERROR: Failed to call Gemini: {e}", file=sys.stderr)
         if args.strict_ok_only:
-            print("❌ --strict-ok-only: Không thể thẩm định, dừng lại.")
+            print("Failed: --strict-ok-only enabled, cannot proceed without AI review.")
             return
         else:
-            print(f"⚠️ Không thẩm định được. Đã lưu chunks vào: {chunks_json_path}")
-            print(f"\n🎉 Chunking completed (without AI review)!")
-            print(f"   📄 Total chunks: {len(all_chunks)}")
-            print(f"   💾 Output file: {chunks_json_path}")
+            safe_path = chunks_json_path.encode('ascii', 'ignore').decode('ascii') or chunks_json_path
+            print(f"Warning: AI review failed. Chunks saved to: {safe_path}")
+            print(f"\nCompleted (without AI review)!")
+            print(f"   Total chunks: {len(all_chunks)}")
+            print(f"   Output file: {safe_path}")
             return
 
     status = review.get("status", "issues_found")
@@ -477,28 +654,36 @@ def main():
         print(f"- Ghi chú: {notes[:4000]}")
 
     if issues:
-        print("\n⚠️ BÁO CÁO VẤN ĐỀ TỪ AI:")
+        print("\nAI Issues Report:")
         for i, it in enumerate(issues, 1):
             print(f"{i:02d}. [{it.get('severity','?')}] ({it.get('category','other')}) "
                   f"{it.get('citation') or it.get('id') or ''}")
             print(f"    - {it.get('message','(no message)')}")
             if it.get('suggestion'):
-                print(f"    → Gợi ý: {it['suggestion']}")
+                print(f"    -> Suggestion: {it['suggestion']}")
         issues_path = chunks_json_path.replace('.json', '.issues.json')
         with open(issues_path, 'w', encoding='utf-8') as f:
             json.dump(review, f, ensure_ascii=False, indent=2)
-        print(f"\n💾 Đã ghi báo cáo vấn đề: {issues_path}")
+        print(f"\nSaved issues report: {issues_path}")
 
         if args.strict_ok_only:
-            print("❌ --strict-ok-only: Không ghi chunks vì AI chưa xác nhận 'ok'.")
+            print("Failed: --strict-ok-only enabled, AI did not confirm OK.")
             return
 
-    print(f"\n🎉 Chunking completed successfully!")
-    print(f"   📄 Total chunks: {len(all_chunks)}")
-    print(f"   💾 Output file: {chunks_json_path}")
+    safe_path = chunks_json_path.encode('ascii', 'ignore').decode('ascii') or chunks_json_path
+    print(f"\nCompleted successfully!")
+    print(f"   Total chunks: {len(all_chunks)}")
+    print(f"   Output file: {safe_path}")
+    if args.file:
+        safe_basename = os.path.basename(args.file).encode('ascii', 'ignore').decode('ascii') or os.path.basename(args.file)
+        print(f"   Source: Single file - {safe_basename}")
+    elif args.category:
+        print(f"   Source: Category - {args.category}")
+    else:
+        print(f"   Source: All categories")
     if args.AI and status == "ok":
-        print("   ✅ AI đã xác nhận: Chunking OK!")
-    print(f"\nNext: Run main_refactored.py to evaluate with chunks from {chunks_json_path}")
+        print("   AI confirmed: Chunking OK!")
+    print(f"\nNext: Run main_refactored.py to evaluate with chunks from {safe_path}")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,31 @@
+{
+  "status": "issues_found",
+  "confidence": 0.8,
+  "issues": [
+    {
+      "id": "LTSDDNONGNGHIEP-D7",
+      "citation": "Điều 7",
+      "severity": "medium",
+      "category": "format",
+      "message": "Điều 7 thiếu khoản, nhưng không có chunk intro.",
+      "suggestion": "Thêm một chunk intro cho Điều 7, mô tả nội dung chính của điều này."
+    },
+    {
+      "id": "LTSDDNONGNGHIEP-D29",
+      "citation": "Điều 29",
+      "severity": "medium",
+      "category": "points_chain",
+      "message": "Điều 29 có các điểm a, b nhưng không có chunk intro khoản.",
+      "suggestion": "Thêm chunk intro khoản cho Điều 29."
+    },
+    {
+      "id": "LTSDDNONGNGHIEP-D36",
+      "citation": "Điều 36",
+      "severity": "medium",
+      "category": "points_chain",
+      "message": "Điều 36 có các khoản nhưng không có intro điều.",
+      "suggestion": "Thêm chunk intro điều cho Điều 36."
+    }
+  ],
+  "notes": "Một số điều thiếu chunk intro, cần kiểm tra lại toàn bộ dữ liệu."
+}

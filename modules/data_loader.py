@@ -203,15 +203,19 @@ def get_default_benchmark_queries() -> List[str]:
 
 def save_chunks_to_json(chunks: List[Dict[str, Any]], output_path: str) -> None:
     """Lưu chunks vào file JSON"""
-    print(f"💾 Saving {len(chunks)} chunks to {output_path}")
+    safe_path = output_path.encode('ascii', 'ignore').decode('ascii') or output_path
+    print(f"Saving {len(chunks)} chunks to {safe_path}")
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(chunks, f, ensure_ascii=False, indent=2)
-    print(f"✅ Saved {len(chunks)} chunks to {output_path}")
+    safe_path = output_path.encode('ascii', 'ignore').decode('ascii') or output_path
+    print(f"Saved {len(chunks)} chunks to {safe_path}")
 
 def load_chunks_from_json(input_path: str) -> List[Dict[str, Any]]:
     """Load chunks từ file JSON"""
-    print(f"📖 Loading chunks from {input_path}")
+    safe_path = input_path.encode('ascii', 'ignore').decode('ascii') or input_path
+    print(f"Loading chunks from {safe_path}")
     with open(input_path, 'r', encoding='utf-8') as f:
         chunks = json.load(f)
-    print(f"✅ Loaded {len(chunks)} chunks from {input_path}")
+    safe_path = input_path.encode('ascii', 'ignore').decode('ascii') or input_path
+    print(f"Loaded {len(chunks)} chunks from {safe_path}")
     return chunks

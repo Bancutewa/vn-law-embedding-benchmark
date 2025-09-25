@@ -46,21 +46,21 @@ def ensure_collection(client: QdrantClient, collection_name: str, vector_size: i
 
         index_fields = {
             # Cấu trúc pháp điển
-            "metadata.law_id": PayloadSchemaType.keyword,
-            "metadata.law_title": PayloadSchemaType.keyword,
-            "metadata.law_no": PayloadSchemaType.keyword,
-            "metadata.chapter": PayloadSchemaType.keyword,
-            "metadata.section": PayloadSchemaType.keyword,
-            "metadata.article_no": PayloadSchemaType.integer,
-            "metadata.article_title": PayloadSchemaType.keyword,
-            "metadata.clause_no": PayloadSchemaType.integer,
-            "metadata.point_letter": PayloadSchemaType.keyword,
-            "metadata.exact_citation": PayloadSchemaType.keyword,
+            "metadata.law_id": PayloadSchemaType.KEYWORD,
+            "metadata.law_title": PayloadSchemaType.KEYWORD,
+            "metadata.law_no": PayloadSchemaType.KEYWORD,
+            "metadata.chapter": PayloadSchemaType.KEYWORD,
+            "metadata.section": PayloadSchemaType.KEYWORD,
+            "metadata.article_no": PayloadSchemaType.INTEGER,
+            "metadata.article_title": PayloadSchemaType.KEYWORD,
+            "metadata.clause_no": PayloadSchemaType.INTEGER,
+            "metadata.point_letter": PayloadSchemaType.KEYWORD,
+            "metadata.exact_citation": PayloadSchemaType.KEYWORD,
             # Nguồn
-            "metadata.source_category": PayloadSchemaType.keyword,
-            "metadata.source_file_name": PayloadSchemaType.keyword,
-            "metadata.source_file": PayloadSchemaType.keyword,
-            "metadata.chunk_index": PayloadSchemaType.integer,
+            "metadata.source_category": PayloadSchemaType.KEYWORD,
+            "metadata.source_file_name": PayloadSchemaType.KEYWORD,
+            "metadata.source_file": PayloadSchemaType.KEYWORD,
+            "metadata.chunk_index": PayloadSchemaType.INTEGER,
         }
 
         for field_name, schema_type in index_fields.items():

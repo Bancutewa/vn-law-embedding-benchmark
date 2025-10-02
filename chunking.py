@@ -224,7 +224,7 @@ def load_law_file_paths(json_path="data_files/law_file_paths.json"):
 def validate_chunks(chunks, verbose=False):
     """Validate chunks sau khi tạo"""
     if verbose:
-        print(f"\n🔍 Validating {len(chunks)} chunks...")
+        print(f"\nValidating {len(chunks)} chunks...")
 
     validation_results = {
         "total_chunks": len(chunks),
@@ -234,7 +234,7 @@ def validate_chunks(chunks, verbose=False):
     }
 
     required_fields = ["id", "content", "metadata"]
-    required_metadata = ["law_id", "article_no", "source_file"]
+    required_metadata = ["law_id", "article_no", "exact_citation"]
 
     for i, chunk in enumerate(chunks):
         is_valid = True
@@ -276,10 +276,10 @@ def validate_chunks(chunks, verbose=False):
             })
 
             if verbose and issues:
-                print(f"  ⚠️ Chunk {i} ({chunk.get('id', 'unknown')}): {', '.join(issues)}")
+                print(f"  WARNING: Chunk {i} ({chunk.get('id', 'unknown')}): {', '.join(issues)}")
 
     if verbose:
-        print(f"✅ Validation complete: {validation_results['valid_chunks']} valid, {validation_results['invalid_chunks']} invalid")
+        print(f"Validation complete: {validation_results['valid_chunks']} valid, {validation_results['invalid_chunks']} invalid")
 
     return validation_results
 
@@ -297,7 +297,7 @@ def load_law_file_paths_by_category(category_folder):
 
     return load_law_file_paths(json_path)
 
-def chunk_all_law_documents(law_file_paths):
+def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective_date="", signer=""):
     """Chunk tất cả văn bản luật từ danh sách file paths"""
 
     print(f"\nStarting to chunk {len(law_file_paths)} law documents...")
@@ -346,11 +346,18 @@ def chunk_all_law_documents(law_file_paths):
 
             # Bước 3: Chunk document
             print("   Chunking document...")
+            # Clean law_title (remove file extension)
+            clean_law_title = file_name.replace('.docx', '').replace('.doc', '')
+
             chunks = chunk_law_document(
                 text=raw_text,
                 law_id=law_id,
-                law_no="",
-                law_title=file_name
+                law_no=law_no,
+                law_title=clean_law_title,
+                issued_date=issued_date,
+                effective_date=effective_date,
+                expiry_date=None,
+                signer=signer
             )
 
             if not chunks:
@@ -361,20 +368,11 @@ def chunk_all_law_documents(law_file_paths):
             # Bước 4: Thêm metadata và chuẩn bị cho save
             print("   Preparing chunks...")
             for j, chunk in enumerate(chunks):
-                # Thêm thông tin về file gốc vào metadata
-                chunk_metadata = chunk.get('metadata', {}).copy()
-                chunk_metadata.update({
-                    'source_file': file_path,
-                    'source_category': category,
-                    'source_file_name': file_name,
-                    'chunk_index': j
-                })
-
-                # Tạo document theo format chunks.json
+                # Sử dụng metadata đã có sẵn từ chunk_law_document (đã đúng format)
                 all_chunks.append({
                     'id': chunk['id'],
                     'content': chunk['content'],
-                    'metadata': chunk_metadata
+                    'metadata': chunk['metadata']
                 })
 
                 # Đếm loại chunk
@@ -442,6 +440,7 @@ def main():
         "  python chunking.py --category BDS                    # Chunk BDS category\n"
         "  python chunking.py --file path/to/file.docx         # Chunk single file\n"
         "  python chunking.py --category BDS --AI --verbose    # Chunk + AI review với chi tiết\n"
+        "  python chunking.py --file luat.docx --law-no '52/2014/QH13' --issued-date '2014-06-19' --signer 'Chủ tịch Quốc hội'  # Chunk với metadata đầy đủ\n"
         "  python chunking.py --validate --dry-run             # Test validation mà không ghi file\n\n"
         "WORKFLOW:\n"
         "  1. find_law_files.py  -> Tạo file paths theo category\n"
@@ -457,6 +456,10 @@ def main():
     parser.add_argument("--api-key", help="Gemini API key (hoặc set GEMINI_API_KEY env var).")
     parser.add_argument("--category", help="Chunk theo category cụ thể (BDS, DN, TM, QDS). Nếu không chỉ định, chunk tất cả.")
     parser.add_argument("--file", help="Chunk một file cụ thể. Khi sử dụng --file, --category sẽ bị ignore.")
+    parser.add_argument("--law-no", help="Số hiệu luật (mặc định rỗng)")
+    parser.add_argument("--issued-date", help="Ngày ban hành luật (YYYY-MM-DD)")
+    parser.add_argument("--effective-date", help="Ngày có hiệu lực (YYYY-MM-DD)")
+    parser.add_argument("--signer", help="Người ký luật")
     parser.add_argument("--verbose", "-v", action="store_true", help="In chi tiết tiến trình chunking và AI review.")
     parser.add_argument("--validate", action="store_true", help="Validate chunks sau khi tạo (check format, metadata).")
     parser.add_argument("--dry-run", action="store_true", help="Test mode: chạy nhưng không ghi file output.")
@@ -515,12 +518,18 @@ def main():
 
     # 2. Chunk tất cả documents
     if args.verbose:
-        print(f"\n📄 Starting to process {len(law_file_paths)} law documents...")
+        print(f"\nStarting to process {len(law_file_paths)} law documents...")
 
-    all_chunks, summary = chunk_all_law_documents(law_file_paths)
+    all_chunks, summary = chunk_all_law_documents(
+        law_file_paths, 
+        law_no=args.law_no or "",
+        issued_date=args.issued_date or "", 
+        effective_date=args.effective_date or "",
+        signer=args.signer or ""
+    )
 
     if args.verbose:
-        print(f"\n📊 Chunking completed: {len(all_chunks)} total chunks")
+        print(f"\nChunking completed: {len(all_chunks)} total chunks")
         print(f"   - Articles: {summary.get('articles', 0)}")
         print(f"   - Clauses: {summary.get('clauses', 0)}")
         print(f"   - Points: {summary.get('points', 0)}")
@@ -529,14 +538,14 @@ def main():
     if args.validate:
         validation = validate_chunks(all_chunks, args.verbose)
         if validation["invalid_chunks"] > 0:
-            print(f"\n⚠️ Found {validation['invalid_chunks']} invalid chunks!")
+            print(f"\nWARNING: Found {validation['invalid_chunks']} invalid chunks!")
             if not args.verbose:
                 print(f"   Use --verbose to see details, or check validation summary")
         else:
-            print(f"\n✅ All {validation['valid_chunks']} chunks are valid!")
+            print(f"\nAll {validation['valid_chunks']} chunks are valid!")
 
     if args.dry_run:
-        print(f"\n🔍 DRY RUN: Would save {len(all_chunks)} chunks to file")
+        print(f"\nDRY RUN: Would save {len(all_chunks)} chunks to file")
         print("   Skipping file output (--dry-run enabled)")
         return
 
@@ -611,7 +620,7 @@ def main():
 
     # ===== Khi --AI bật: gọi Gemini để thẩm định =====
     if args.verbose:
-        print(f"\n🤖 Preparing AI review payload...")
+        print(f"\nPreparing AI review payload...")
 
     payload = build_review_payload(
         chunks=all_chunks,
@@ -621,14 +630,14 @@ def main():
         max_chunks_sample=args.max_chunks_sample
     )
 
-    print(f"\nAI: Calling GEMINI (gemini-1.5-flash) for chunking review =====")
+    print(f"\nAI: Calling GEMINI (gemini 2.0 Flash) for chunking review =====")
     print(f"   Sending: {len(payload['chunks_preview'])} sampled chunks + {len(raw_texts)} file excerpts")
     print(f"   Payload size estimate: ~{len(str(payload)) // 1000}KB")
 
     if args.verbose:
-        print(f"   📊 Summary stats: {payload['summary']}")
-        print(f"   📄 Excerpts length: {len(payload['excerpts'])} chars")
-        print(f"   🎯 Note: {payload['note']}")
+        print(f"   Summary stats: {payload['summary']}")
+        print(f"   Excerpts length: {len(payload['excerpts'])} chars")
+        print(f"   Note: {payload['note']}")
     try:
         review = call_gemini_review(payload, args.api_key)
     except Exception as e:

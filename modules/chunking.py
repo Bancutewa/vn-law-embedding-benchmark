@@ -302,7 +302,9 @@ def generate_law_id(file_name: str) -> str:
     # Nếu không phải luật sửa đổi, tạo ID thông thường
     return generate_law_id_from_name(name)
 
-def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_title: str = "") -> List[Dict[str, Any]]:
+def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_title: str = "",
+                       issued_date: str = "", effective_date: str = "", expiry_date: str = None,
+                       signer: str = "") -> List[Dict[str, Any]]:
     """Chia văn bản luật thành chunks theo định dạng hn2014_chunks.json"""
     print("   Chunking law document with strict parsing...")
 
@@ -387,7 +389,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
 
     def build_article_header(article_no: int, article_title: str) -> str:
         t = (article_title or "").strip()
-        return f"Điều {article_no}" + (f" {t}" if t else "")
+        return f"Điều {article_no}" + (f". {t}" if t else "")
 
     def flush_article_intro():
         nonlocal article_intro_buf, article_has_any_chunk
@@ -400,10 +402,15 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             "law_no": law_no,
             "law_title": law_title,
             "law_id": law_id,
+            "issued_date": issued_date,
+            "effective_date": effective_date,
+            "expiry_date": expiry_date,
+            "signer": signer,
             "chapter": chapter_label,
             "article_no": article_no,
             "article_title": article_title,
-            "exact_citation": exact
+            "exact_citation": exact,
+            "chapter_number": chapter_number
         }
         title_line = f"Điều {article_no}. {article_title}".strip() if article_title else f"Điều {article_no}"
         chunks.append({
@@ -425,6 +432,10 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             "law_no": law_no,
             "law_title": law_title,
             "law_id": law_id,
+            "issued_date": issued_date,
+            "effective_date": effective_date,
+            "expiry_date": expiry_date,
+            "signer": signer,
             "chapter": chapter_label,
             "article_no": article_no,
             "article_title": article_title,
@@ -459,6 +470,10 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             "law_no": law_no,
             "law_title": law_title,
             "law_id": law_id,
+            "issued_date": issued_date,
+            "effective_date": effective_date,
+            "expiry_date": expiry_date,
+            "signer": signer,
             "chapter": chapter_label,
             "article_no": article_no,
             "article_title": article_title,

@@ -81,7 +81,19 @@ def load_all_law_documents() -> List[Dict[str, Any]]:
             # Tạo law_id tự động từ tên file
             law_id = generate_law_id(file_name)
             print(f"   📋 Generated law_id: {law_id}")
-            law_chunks = chunk_law_document(law_text, law_id=law_id, law_no="", law_title=file_name)
+            # Clean law_title (remove file extension)
+            clean_law_title = file_name.replace('.docx', '').replace('.doc', '')
+
+            law_chunks = chunk_law_document(
+                law_text,
+                law_id=law_id,
+                law_no="",
+                law_title=clean_law_title,
+                issued_date="",
+                effective_date="",
+                expiry_date=None,
+                signer=""
+            )
 
             if not law_chunks:
                 print(f"   ⚠️ No chunks created from file")
@@ -91,20 +103,11 @@ def load_all_law_documents() -> List[Dict[str, Any]]:
             # Bước 3: Chuẩn bị dữ liệu cho đánh giá
             print(f"   🗂️ Preparing chunks...")
             for j, chunk in enumerate(law_chunks):
-                # Thêm thông tin về file gốc vào metadata
-                chunk_metadata = chunk.get('metadata', {}).copy()
-                chunk_metadata.update({
-                    'source_file': file_path,
-                    'source_category': category,
-                    'source_file_name': file_name,
-                    'chunk_index': j
-                })
-
                 # Tạo document theo format hn2014_chunks.json
                 all_law_docs.append({
                     'id': chunk['id'],
                     'content': chunk['content'],
-                    'metadata': chunk_metadata
+                    'metadata': chunk['metadata']
                 })
 
             print(f"   ✅ Successfully processed {len(law_chunks)} chunks")

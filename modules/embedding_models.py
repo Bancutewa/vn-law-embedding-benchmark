@@ -124,24 +124,6 @@ def get_models_to_evaluate() -> List[Dict[str, Any]]:
             'type': 'transformers',
             'description': 'Mô hình Sentence Similarity đã fine tune trên bộ luật pháp Việt Nam',
             'max_length': 512
-        },
-        {
-            'name': 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2',
-            'type': 'sentence_transformers',
-            'description': 'Mô hình cơ sở đa ngôn ngữ (base model)',
-            'max_length': 512
-        },
-        {
-            'name': 'namnguyenba2003/Vietnamese_Law_Embedding_finetuned_v3_256dims',
-            'type': 'transformers',
-            'description': 'Mô hình embedding luật Việt Nam với 256 dimensions',
-            'max_length': 512
-        },
-        {
-            'name': 'truro7/vn-law-embedding',
-            'type': 'sentence_transformers',
-            'description': 'Mô hình embedding luật Việt Nam bằng Sentence Transformers',
-            'max_length': 512
         }
     ]
 

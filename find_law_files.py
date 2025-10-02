@@ -13,7 +13,7 @@ def find_all_law_files(law_content_dir="law_content"):
     
     print(f"🔍 Searching for law files in: {law_content_dir}")
     
-    # Tìm tất cả file .doc và .docx
+    # Tìm tất cả file  .docx
     # doc_files = glob.glob(os.path.join(law_content_dir, "**", "*.doc"), recursive=True)
     docx_files = glob.glob(os.path.join(law_content_dir, "**", "*.docx"), recursive=True)
     

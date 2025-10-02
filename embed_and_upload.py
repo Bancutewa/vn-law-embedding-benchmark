@@ -16,6 +16,7 @@ from typing import List, Dict, Any
 from modules.qdrant_manager import (
     get_qdrant_client,
     ensure_collection,
+    ensure_or_append_collection,
     upsert_embeddings_to_qdrant,
     count_collection_points,
     get_collection_info
@@ -70,8 +71,8 @@ def main():
     # File chunk JSON - sửa path này khi cần
     parser.add_argument(
         "--chunk-file",
-        default="data/BDS_chunk_155638_250925.json",  # ←←← SỬA PATH FILE CHUNK Ở ĐÂY
-        help="Path to chunk JSON file (default: data/BDS_chunk_155638_250925.json)"
+        default="data/11_2024_QD-TTg_618716_về_Tiêu__chunk_163558_021025.json",  # ←←← SỬA PATH FILE CHUNK Ở ĐÂY
+        help="Path to chunk JSON file"
     )
 
     # Model embedding - sửa model này khi cần
@@ -87,6 +88,16 @@ def main():
         default="BDS",  # ←←← SỬA CATEGORY Ở ĐÂY
         help="Category name for collection (default: BDS)"
     )
+
+    # ========== VÍ DỤ SỬ DỤNG ==========
+    # Upload lần đầu:
+    # python embed_and_upload.py --chunk-file "data/BDS_chunk.json" --category BDS
+    #
+    # Append thêm data vào collection đã có:
+    # python embed_and_upload.py --chunk-file "data/more_BDS_chunks.json" --category BDS --append
+    #
+    # Force recreate (xóa data cũ):
+    # python embed_and_upload.py --chunk-file "data/BDS_chunk.json" --category BDS --force-recreate
 
     # Model type - tự động detect nhưng có thể override
     parser.add_argument(
@@ -117,12 +128,23 @@ def main():
     )
 
     parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append to existing collection instead of recreating (vectors must have same dimension)"
+    )
+
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Test mode: chỉ encode và validate, không upload lên Qdrant"
     )
 
     args = parser.parse_args()
+
+    # Kiểm tra conflict giữa --append và --force-recreate
+    if args.append and args.force_recreate:
+        print("❌ ERROR: Cannot use both --append and --force-recreate at the same time!")
+        return
 
     print("=" * 80)
     print("🚀 VIETNAMESE LAW EMBEDDING & QDRANT UPLOAD")
@@ -133,6 +155,14 @@ def main():
     print(f"🎯 Collection: {create_collection_name(args.model, args.category)}")
     print(f"⚙️  Device: {args.device}")
     print(f"📦 Batch size: {args.batch_size}")
+
+    if args.append:
+        print("📎 APPEND MODE - Will append to existing collection")
+    elif args.force_recreate:
+        print("🔄 FORCE RECREATE MODE - Will recreate collection")
+    else:
+        print("🔄 AUTO MODE - Will recreate if collection exists")
+
     if args.dry_run:
         print("🔍 DRY RUN MODE - No upload to Qdrant")
     print("=" * 80)
@@ -194,21 +224,16 @@ def main():
         collection_name = create_collection_name(args.model, args.category)
         print(f"📋 Collection name: {collection_name}")
 
-        # 8. Check existing collection
-        existing_info = get_collection_info(client, collection_name)
-        if existing_info and not args.force_recreate:
-            existing_count = existing_info.get('points_count', 0)
-            print(f"⚠️  Collection '{collection_name}' already exists with {existing_count} points")
-            choice = input("   Continue and recreate? (y/N): ").strip().lower()
-            if choice != 'y':
-                print("❌ Aborted")
-                return
+        # 8. Xử lý collection (tạo mới hoặc append)
+        try:
+            collection_created = ensure_or_append_collection(
+                client, collection_name, vector_size, append_mode=args.append
+            )
+        except ValueError as e:
+            print(f"❌ {e}")
+            return
 
-        # 9. Tạo collection
-        print(f"🏗️  Creating collection '{collection_name}'...")
-        ensure_collection(client, collection_name, vector_size)
-
-        # 10. Upload embeddings và chunks lên Qdrant
+        # 9. Upload embeddings và chunks lên Qdrant
         print(f"📤 Uploading to Qdrant...")
         upsert_embeddings_to_qdrant(
             client=client,
@@ -218,7 +243,7 @@ def main():
             batch_size=100  # Qdrant batch size
         )
 
-        # 11. Verify upload
+        # 10. Verify upload
         final_count = count_collection_points(client, collection_name)
         print(f"✅ SUCCESS! Collection '{collection_name}' now has {final_count} vectors")
 

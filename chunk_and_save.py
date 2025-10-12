@@ -27,8 +27,12 @@ def read_docx_content(file_path: str) -> str:
     from modules.chunking import read_docx
     return read_docx(file_path)
 
-def chunk_single_file(file_path: str, metadata: Dict[str, str], verbose: bool = False) -> List[Dict[str, Any]]:
-    """Chunk một file đơn lẻ với metadata đầy đủ"""
+def chunk_single_file(file_path: str, metadata: Dict[str, str], verbose: bool = False):
+    """Chunk một file đơn lẻ với metadata đầy đủ
+    
+    Returns:
+        tuple: (chunks, chunk_stats) - List of chunks và dict stats
+    """
     if verbose:
         safe_file_path = file_path.encode('ascii', 'ignore').decode('ascii') or file_path
         print(f"Reading file: {safe_file_path}")
@@ -45,7 +49,7 @@ def chunk_single_file(file_path: str, metadata: Dict[str, str], verbose: bool = 
     if verbose:
         print("Chunking document...")
 
-    chunks = chunk_law_document(
+    chunks, chunk_stats = chunk_law_document(
         text=raw_text,
         law_id=metadata.get('law_id', 'LAW'),
         law_no=metadata.get('law_no', ''),
@@ -58,8 +62,9 @@ def chunk_single_file(file_path: str, metadata: Dict[str, str], verbose: bool = 
 
     if verbose:
         print(f"   Created {len(chunks)} chunks")
+        print(f"   Stats - Articles: {chunk_stats.get('articles', 0)}, Article Intro: {chunk_stats.get('article_intro', 0)}, Clauses: {chunk_stats.get('clauses', 0)}, Points: {chunk_stats.get('points', 0)}")
 
-    return chunks
+    return chunks, chunk_stats
 
 def generate_output_filename(file_path: str, category: str = "", custom_name: str = "") -> str:
     """Tạo tên file output tự động"""
@@ -90,7 +95,7 @@ def main():
     # File input - sửa path này khi cần
     parser.add_argument(
         "--file",
-        default="law_content/Bất động sản/Luật xây dựng/Luật_/43_VBHN-VPQH_no_refs.docx",  # ←←← SỬA PATH FILE Ở ĐÂY
+        default="law_content/Bất động sản/Luật thuế sử dụng đất nông nghiệp/văn bản quy phạm pháp luật/LUẬT THUẾ SỬ DỤNG ĐẤT NÔNG NGHIỆP.docx",  # ←←← SỬA PATH FILE Ở ĐÂY
         help="Path to input docx file"
     )
     # Category (cho naming)
@@ -104,31 +109,31 @@ def main():
     # Thông tin luật pháp - sửa các thông tin này khi cần
     parser.add_argument(
         "--law-no",
-        default="50/2014/QH13 ",  # ←←← SỬA SỐ HIỆU LUẬT Ở ĐÂY
+        default=" ",  # ←←← SỬA SỐ HIỆU LUẬT Ở ĐÂY
         help="Law number"
     )
 
     parser.add_argument(
         "--law-title",
-        default="Luật Xây dựng",  # ←←← SỬA TÊN LUẬT Ở ĐÂY
+        default="LUẬT THUẾ SỬ DỤNG ĐẤT PHI NÔNG NGHIỆP",  # ←←← SỬA TÊN LUẬT Ở ĐÂY
         help="Law title"
     )
 
     parser.add_argument(
         "--law-id",
-        default="LXAYDUNG",  # ←←← SỬA LAW ID Ở ĐÂY
+        default="LTSDDPHINONGNGHIEP",  # ←←← SỬA LAW ID Ở ĐÂY
         help="Law ID"
     )
 
     parser.add_argument(
         "--issued-date",
-        default="2014-6-18",  # ←←← SỬA NGÀY BAN HÀNH Ở ĐÂY
+        default="",  # ←←← SỬA NGÀY BAN HÀNH Ở ĐÂY
         help="Issued date (YYYY-MM-DD)"
     )
 
     parser.add_argument(
         "--effective-date",
-        default="2015-1-1",  # ←←← SỬA NGÀY CÓ HIỆU LỰC Ở ĐÂY
+        default="",  # ←←← SỬA NGÀY CÓ HIỆU LỰC Ở ĐÂY
         help="Effective date (YYYY-MM-DD)"
     )
 
@@ -273,7 +278,7 @@ def main():
         }
 
         # 3. Chunk document
-        chunks = chunk_single_file(args.file, metadata, args.verbose)
+        chunks, chunk_stats = chunk_single_file(args.file, metadata, args.verbose)
 
         if not chunks:
             print("ERROR: No chunks were created!")
@@ -309,17 +314,17 @@ def main():
                     safe_error = str(e).encode('ascii', 'ignore').decode('ascii') or str(e)
                     print(f"   WARNING: Failed to read {safe_file}: {safe_error}")
 
-            # Chuẩn bị summary cho AI review
+            # Sử dụng summary từ chunk_stats thay vì đếm lại
             summary = {
-                "chapters_seen": [],  # Không có thông tin chapters trong single file processing
-                "articles": sum(1 for c in chunks if c.get('metadata', {}).get('article_no') and not c.get('metadata', {}).get('clause_no')),
-                "article_intro": sum(1 for c in chunks if 'intro' in c.get('id', '').lower()),
-                "clauses": sum(1 for c in chunks if c.get('metadata', {}).get('clause_no') and not c.get('metadata', {}).get('point_letter')),
-                "points": sum(1 for c in chunks if c.get('metadata', {}).get('point_letter')),
-                "citations": [c.get('metadata', {}).get('exact_citation', '') for c in chunks if c.get('metadata', {}).get('exact_citation')],
+                "chapters_seen": chunk_stats.get('chapters_seen', []),
+                "articles": chunk_stats.get('articles', 0),
+                "article_intro": chunk_stats.get('article_intro', 0),
+                "clauses": chunk_stats.get('clauses', 0),
+                "points": chunk_stats.get('points', 0),
+                "citations": chunk_stats.get('citations', []),
                 "warnings": [],
                 "halted_reason": None,
-                "total_chunks": len(chunks)
+                "total_chunks": chunk_stats.get('total_chunks', len(chunks))
             }
 
             print("AI: Calling Gemini for chunking review...")
@@ -410,16 +415,17 @@ def main():
         print(f"   Input file: {safe_input_file}")
         print(f"   Law: {safe_law_title}")
         print(f"   Total chunks: {len(chunks)}")
-        print(f"   Avg length: {sum(len(c['content']) for c in chunks) // len(chunks):.1f} chars")
-        # Thống kê theo loại chunk
-        article_count = sum(1 for c in chunks if c.get('metadata', {}).get('article_no') and not c.get('metadata', {}).get('clause_no'))
-        clause_count = sum(1 for c in chunks if c.get('metadata', {}).get('clause_no') and not c.get('metadata', {}).get('point_letter'))
-        point_count = sum(1 for c in chunks if c.get('metadata', {}).get('point_letter'))
-
+        if chunks:
+            print(f"   Avg length: {sum(len(c['content']) for c in chunks) // len(chunks):.1f} chars")
+        
+        # Sử dụng stats từ chunk_stats
         print("   Breakdown:")
-        print(f"      - Articles: {article_count}")
-        print(f"      - Clauses: {clause_count}")
-        print(f"      - Points: {point_count}")
+        print(f"      - Articles: {chunk_stats.get('articles', 0)}")
+        print(f"      - Article Intro: {chunk_stats.get('article_intro', 0)}")
+        print(f"      - Clauses: {chunk_stats.get('clauses', 0)}")
+        print(f"      - Points: {chunk_stats.get('points', 0)}")
+        print(f"      - Chapters: {len(chunk_stats.get('chapters_seen', []))}")
+        print(f"      - Citations: {len(chunk_stats.get('citations', []))}")
 
         if not args.dry_run:
             safe_output_path = output_path.encode('ascii', 'ignore').decode('ascii') or output_path

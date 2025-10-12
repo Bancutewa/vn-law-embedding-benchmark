@@ -94,7 +94,6 @@ python chunking.py --file "path/to/luat.docx" \
   --issued-date "2014-06-19" \
   --effective-date "2014-06-19" \
   --signer "Chủ tịch Quốc hội Nguyễn Sinh Hùng"
-
 # Chunk tất cả categories
 python chunking.py
 

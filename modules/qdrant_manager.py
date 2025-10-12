@@ -139,7 +139,24 @@ def upsert_embeddings_to_qdrant(client: QdrantClient, collection_name: str, embe
 
         for idx in range(i, batch_end):
             payload = law_docs[idx]
-            batch_points.append(PointStruct(id=idx, vector=embeddings[idx].tolist(), payload=payload))
+
+            # Tạo ID duy nhất dựa trên metadata để tránh ghi đè
+            # Ưu tiên dùng chunk_id nếu có, không thì tạo từ hash của content
+            chunk_id = payload.get('id') or payload.get('chunk_id')
+            if not chunk_id:
+                # Fallback: tạo ID từ hash của content + metadata
+                import hashlib
+                content_hash = hashlib.md5(payload.get('content', '').encode('utf-8')).hexdigest()[:16]
+                metadata_str = str(payload.get('metadata', {}))
+                chunk_id = f"{content_hash}_{hash(metadata_str) % 1000000}"
+
+            # Chuyển thành int nếu có thể, không thì dùng hash
+            try:
+                point_id = int(chunk_id) if chunk_id.isdigit() else hash(chunk_id) % 2147483647
+            except (ValueError, AttributeError):
+                point_id = hash(chunk_id) % 2147483647
+
+            batch_points.append(PointStruct(id=point_id, vector=embeddings[idx].tolist(), payload=payload))
 
         # Retry mechanism
         max_retries = 3

@@ -73,3 +73,4 @@ if __name__ == "__main__":
     debug_collection_config()</content>
 </xai:function_call name="run_terminal_cmd">
 <parameter name="command">python debug_qdrant_config.py
+

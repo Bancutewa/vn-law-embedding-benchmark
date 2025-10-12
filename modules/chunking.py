@@ -181,7 +181,7 @@ def generate_law_id_from_name(name: str) -> str:
         'đầu tư công': 'LDAUTUCONG',
         'đầu tư theo phương thức đối tác công tư': 'LDAUTUPPPCT',
         'thuế sử dụng đất nông nghiệp': 'LTSDDNONGNGHIEP',
-        'thuế sử dụng đất phi nông nghiệp': 'LTSDDPHINONGNGHIEP',
+        'LUẬT THUẾ SỬ DỤNG ĐẤT PHI NÔNG NGHIỆP': 'LTSDDPHINONGNGHIEP',
         'xây dựng': 'LXAYDUNG',
         'hôn nhân và gia đình': 'LHNVDG',
         'luat_hon_nhan_gia_dinh_2014': 'LHNVDG',
@@ -313,6 +313,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
     # ===== Regex (đầu dòng) =====
     ARTICLE_RE = re.compile(r'^Điều\s+(\d+)\s*[\.:]?\s*(.*)$', re.UNICODE)
     CHAPTER_RE = re.compile(r'^Chương\s+([IVXLCDM]+|\d+)\s*:?\s*(.*)$', re.UNICODE | re.IGNORECASE)
+    SECTION_RE = re.compile(r'^Mục\s+(\d+)[:\s]*(.*)$', re.UNICODE | re.IGNORECASE)  # Mục: "Mục 1:" hoặc "Mục 1 "
     CLAUSE_RE = re.compile(r'^\s*(\d+)\.\s*(.*)$', re.UNICODE)  # Khoản: PHẢI "1."
     POINT_RE  = re.compile(r'^\s*([a-zA-ZđĐ])[\)\.]\s+(.*)$', re.UNICODE)  # Điểm: "a)" hoặc "a."
 
@@ -327,7 +328,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
         if not line:
             continue
         if expecting_chapter_title:
-            if not (CHAPTER_RE.match(line) or CLAUSE_RE.match(line) or POINT_RE.match(line) or ARTICLE_RE.match(line)):
+            if not (CHAPTER_RE.match(line) or SECTION_RE.match(line) or CLAUSE_RE.match(line) or POINT_RE.match(line) or ARTICLE_RE.match(line)):
                 ch_title = line.strip()
                 lbl = f"Chương {roman_current} – {ch_title}"
                 chapters_labels[-1] = lbl  # cập nhật label cuối
@@ -360,6 +361,10 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
 
     # ===== PASS 2: Chunk strict =====
     chunks = []
+    citations = []
+    stats = {"articles": 0, "article_intro": 0, "clauses": 0, "points": 0}
+    chapters_seen_labels = []
+    
     chapter_label: Optional[str] = None
     expecting_chapter_title: bool = False
     roman_current: Optional[str] = None
@@ -418,6 +423,8 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             "content": f"{title_line}\n{content}",
             "metadata": meta
         })
+        stats["article_intro"] += 1
+        citations.append(exact)
         article_intro_buf = ""
         article_has_any_chunk = True
 
@@ -445,24 +452,18 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
         }
         art_hdr = build_article_header(article_no, article_title)
 
-        # TIÊM intro Điều vào khoản (nếu có)
-        if article_clause_intro_current:
-            intro = article_clause_intro_current.rstrip().rstrip(':') + ':'
-            full_content = f"{art_hdr} Khoản {clause_no}. {intro}\n{content}"
-            meta["clause_intro"] = article_clause_intro_current
-        else:
-            full_content = f"{art_hdr} Khoản {clause_no}. {content}"
+        # KHÔNG thêm article_clause_intro_current vào khoản (đã có trong intro Điều)
+        full_content = f"{art_hdr} Khoản {clause_no}. {content}"
 
         chunks.append({"id": cid, "content": full_content, "metadata": meta})
+        stats["clauses"] += 1
+        citations.append(exact)
 
     def flush_point():
         nonlocal point_buf
         content = (point_buf or "").strip()
         if not content:
             return
-        if clause_intro_current:
-            intro = clause_intro_current.rstrip().rstrip(':') + ':'
-            content = f"{intro}\n{content}"
         letter = point_letter.lower()
         cid = f"{law_id}-D{article_no}-K{clause_no}-{letter}"
         exact = f"Điều {article_no} khoản {clause_no} điểm {letter}."
@@ -486,6 +487,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             meta["clause_intro"] = clause_intro_current
         art_hdr = build_article_header(article_no, article_title)
 
+        # Chỉ thêm intro 1 lần vào full_content
         if clause_intro_current:
             intro = clause_intro_current.rstrip().rstrip(':')
             full_content = f"{art_hdr} Khoản {clause_no}. {intro}, điểm {letter}.\n{content}"
@@ -493,6 +495,8 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             full_content = f"{art_hdr} Khoản {clause_no}, điểm {letter}. {content}"
 
         chunks.append({"id": cid, "content": full_content, "metadata": meta})
+        stats["points"] += 1
+        citations.append(exact)
 
     def close_clause():
         nonlocal clause_no, clause_buf, in_points, point_letter, point_buf, article_has_any_chunk, clause_intro_current
@@ -510,6 +514,8 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
         nonlocal article_intro_buf, article_has_any_chunk
         if not article_has_any_chunk and article_intro_buf.strip():
             flush_article_intro()
+        article_intro_buf = ""
+        article_has_any_chunk = False
 
     print(f"   Processing {len(lines):,} lines...")
 
@@ -528,6 +534,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
                         close_article_if_needed()
                     article_no = a_no
                     article_title = (m_art_seek.group(2) or "").strip()
+                    stats["articles"] += 1
                     if not article_title:
                         expecting_article_title = True
                     expected_article = a_no + 1
@@ -537,11 +544,12 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
                     point_letter = None
                     point_buf = ""
                     clause_intro_current = None
+                    article_clause_intro_current = None
                     continue
             continue
 
         if expecting_article_title:
-            if not any(regex.match(line) for regex in [CHAPTER_RE, CLAUSE_RE, POINT_RE, ARTICLE_RE]):
+            if not any(regex.match(line) for regex in [CHAPTER_RE, SECTION_RE, CLAUSE_RE, POINT_RE, ARTICLE_RE]):
                 article_title = line
                 expecting_article_title = False
                 continue
@@ -549,14 +557,21 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
                 expecting_article_title = False
 
         if expecting_chapter_title:
-            if not (CHAPTER_RE.match(line) or CLAUSE_RE.match(line) or POINT_RE.match(line) or ARTICLE_RE.match(line)):
+            if not (CHAPTER_RE.match(line) or SECTION_RE.match(line) or CLAUSE_RE.match(line) or POINT_RE.match(line) or ARTICLE_RE.match(line)):
                 ch_title = line.strip()
                 lbl = f"Chương {roman_current} – {ch_title}"
                 chapter_label = lbl
+                if lbl not in chapters_seen_labels:
+                    chapters_seen_labels.append(lbl)
                 expecting_chapter_title = False
                 continue
             else:
                 expecting_chapter_title = False
+
+        # MỤC - Skip để không nối vào article_intro_buf hay clause_buf
+        m_sec = SECTION_RE.match(line)
+        if m_sec:
+            continue
 
         # CHƯƠNG
         m_ch = CHAPTER_RE.match(line)
@@ -569,6 +584,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             article_intro_buf = ""
             expecting_article_title = False
             article_clause_intro_current = None
+            article_has_any_chunk = False
 
             roman = m_ch.group(1).strip()
             ch_num = roman_to_int(roman) or 0
@@ -582,6 +598,8 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             else:
                 chapter_label = lbl
                 chapter_number = ch_num  # lưu chapter_number
+                if lbl not in chapters_seen_labels:
+                    chapters_seen_labels.append(lbl)
                 expecting_chapter_title = False
 
             if expected_chapter is None:
@@ -611,6 +629,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
                     close_article_if_needed()
                 article_no = a_no
                 article_title = a_title
+                stats["articles"] += 1
                 if not article_title:
                     expecting_article_title = True
                 clause_no = None
@@ -628,6 +647,7 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
                     close_article_if_needed()
                 article_no = a_no
                 article_title = a_title
+                stats["articles"] += 1
                 if not article_title:
                     expecting_article_title = True
                 clause_no = None
@@ -727,4 +747,16 @@ def chunk_law_document(text: str, law_id: str = "LAW", law_no: str = "", law_tit
             valid_chunks.append(chunk)
 
     print(f"   Created {len(valid_chunks)} chunks")
-    return valid_chunks
+    print(f"   Stats - Articles: {stats['articles']}, Article Intro: {stats['article_intro']}, Clauses: {stats['clauses']}, Points: {stats['points']}")
+    print(f"   Chapters seen: {len(chapters_seen_labels)}, Citations: {len(citations)}")
+    
+    # Return chunks với thêm thông tin stats để caller có thể sử dụng
+    return valid_chunks, {
+        "chapters_seen": chapters_seen_labels,
+        "articles": stats["articles"],
+        "article_intro": stats["article_intro"],
+        "clauses": stats["clauses"],
+        "points": stats["points"],
+        "citations": citations,
+        "total_chunks": len(valid_chunks)
+    }

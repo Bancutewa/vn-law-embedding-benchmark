@@ -71,7 +71,7 @@ def main():
     # File chunk JSON - sửa path này khi cần
     parser.add_argument(
         "--chunk-file",
-        default="data/11_2024_QD-TTg_618716_về_Tiêu__chunk_163558_021025.json",  # ←←← SỬA PATH FILE CHUNK Ở ĐÂY
+        default="data/BDS_chunk_153805_121025.json",  # ←←← SỬA PATH FILE CHUNK Ở ĐÂY
         help="Path to chunk JSON file"
     )
 
@@ -85,8 +85,8 @@ def main():
     # Category - sửa category này khi cần
     parser.add_argument(
         "--category",
-        default="BDS",  # ←←← SỬA CATEGORY Ở ĐÂY
-        help="Category name for collection (default: BDS)"
+        default="BDS",  # ←←← SỬA CATEGORY Ở ĐÂYm
+        help="Category name for collection"
     )
 
     # ========== VÍ DỤ SỬ DỤNG ==========
@@ -98,6 +98,8 @@ def main():
     #
     # Force recreate (xóa data cũ):
     # python embed_and_upload.py --chunk-file "data/BDS_chunk.json" --category BDS --force-recreate
+
+
 
     # Model type - tự động detect nhưng có thể override
     parser.add_argument(

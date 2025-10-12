@@ -25,7 +25,7 @@ from modules.chunking import read_docx, chunk_law_document, generate_law_id
 from modules.data_loader import save_chunks_to_json
 
 # ====== CẤU HÌNH AGENT ======
-GEMINI_MODEL_NAME = "gemini-1.5-flash"  # cố định theo yêu cầu
+GEMINI_MODEL_NAME = "gemini-2.5-flash"  # cố định theo yêu cầu
 
 # ===================== GEMINI EVALUATION AGENT =====================
 
@@ -306,6 +306,8 @@ def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective
     successful_chunks = 0
     failed_files = 0
     warnings = []
+    chapters_seen_all = []
+    citations_all = []
     articles_count = 0
     article_intro_count = 0
     clauses_count = 0
@@ -349,7 +351,7 @@ def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective
             # Clean law_title (remove file extension)
             clean_law_title = file_name.replace('.docx', '').replace('.doc', '')
 
-            chunks = chunk_law_document(
+            chunks, chunk_stats = chunk_law_document(
                 text=raw_text,
                 law_id=law_id,
                 law_no=law_no,
@@ -375,18 +377,21 @@ def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective
                     'metadata': chunk['metadata']
                 })
 
-                # Đếm loại chunk
-                metadata = chunk.get('metadata', {})
-                if metadata.get('point_letter'):
-                    points_count += 1
-                elif metadata.get('clause_no'):
-                    clauses_count += 1
-                elif metadata.get('article_no') and not metadata.get('clause_no'):
-                    if 'intro' in chunk['id'].lower():
-                        article_intro_count += 1
-                    else:
-                        articles_count += 1
-
+            # Lấy stats từ chunk_stats thay vì đếm lại
+            articles_count += chunk_stats.get('articles', 0)
+            article_intro_count += chunk_stats.get('article_intro', 0)
+            clauses_count += chunk_stats.get('clauses', 0)
+            points_count += chunk_stats.get('points', 0)
+            
+            # Thu thập chapters_seen và citations
+            for chapter_label in chunk_stats.get('chapters_seen', []):
+                if chapter_label and chapter_label not in chapters_seen_all:
+                    chapters_seen_all.append(chapter_label)
+            
+            for citation in chunk_stats.get('citations', []):
+                if citation:
+                    citations_all.append(citation)
+            
             print(f"   Successfully processed {len(chunks)} chunks")
             successful_chunks += len(chunks)
 
@@ -416,12 +421,12 @@ def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective
 
     # Tạo summary dictionary
     summary = {
-        "chapters_seen": [],  # Không có thông tin chapters trong batch processing
+        "chapters_seen": chapters_seen_all,
         "articles": articles_count,
         "article_intro": article_intro_count,
         "clauses": clauses_count,
         "points": points_count,
-        "citations": [],  # Không có citations trong batch processing
+        "citations": citations_all,
         "warnings": warnings,
         "halted_reason": None,
         "total_chunks": len(all_chunks)

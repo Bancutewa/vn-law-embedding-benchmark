@@ -19,6 +19,10 @@ docx2txt
 textract
 pypandoc
 
+# AI Review
+google-generativeai
+python-dotenv
+
 # Data science utilities
 scikit-learn
 scipy

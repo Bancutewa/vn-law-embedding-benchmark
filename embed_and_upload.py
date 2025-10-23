@@ -71,13 +71,14 @@ def main():
     # File chunk JSON - sửa path này khi cần
     parser.add_argument(
         "--chunk-file",
-        default="data/BDS_chunk_153805_121025.json",  # ←←← SỬA PATH FILE CHUNK Ở ĐÂY
+        default="data/LHN2014/luat_hon_nhan_gia_dinh_2014_chunk_165859_141025.json",
         help="Path to chunk JSON file"
     )
 
     # Model embedding - sửa model này khi cần
     parser.add_argument(
         "--model",
+        # default="BAAI/bge-m3",  # ←←← SỬA MODEL Ở ĐÂY
         default="minhquan6203/paraphrase-vietnamese-law",  # ←←← SỬA MODEL Ở ĐÂY
         help="Embedding model name (default: minhquan6203/paraphrase-vietnamese-law)"
     )
@@ -85,7 +86,7 @@ def main():
     # Category - sửa category này khi cần
     parser.add_argument(
         "--category",
-        default="BDS",  # ←←← SỬA CATEGORY Ở ĐÂYm
+        default="LHN2014",  # ←←← SỬA CATEGORY Ở ĐÂYm
         help="Category name for collection"
     )
 
@@ -126,13 +127,14 @@ def main():
     parser.add_argument(
         "--force-recreate",
         action="store_true",
-        help="Force recreate collection even if it exists"
+        help="Force recreate collection (XÓA DỮ LIỆU CŨ!)"
     )
 
     parser.add_argument(
         "--append",
         action="store_true",
-        help="Append to existing collection instead of recreating (vectors must have same dimension)"
+        default=True,
+        help="Append to existing collection instead of recreating (DEFAULT)"
     )
 
     parser.add_argument(
@@ -143,10 +145,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Kiểm tra conflict giữa --append và --force-recreate
-    if args.append and args.force_recreate:
-        print("❌ ERROR: Cannot use both --append and --force-recreate at the same time!")
-        return
+    # Fix: --force-recreate override --append
+    if args.force_recreate:
+        args.append = False
 
     print("=" * 80)
     print("🚀 VIETNAMESE LAW EMBEDDING & QDRANT UPLOAD")
@@ -158,12 +159,12 @@ def main():
     print(f"⚙️  Device: {args.device}")
     print(f"📦 Batch size: {args.batch_size}")
 
-    if args.append:
-        print("📎 APPEND MODE - Will append to existing collection")
-    elif args.force_recreate:
-        print("🔄 FORCE RECREATE MODE - Will recreate collection")
+    if args.force_recreate:
+        print("⚠️  FORCE RECREATE MODE - Will DELETE existing data and recreate collection!")
+    elif args.append:
+        print("📎 APPEND MODE (default) - Will append to existing collection")
     else:
-        print("🔄 AUTO MODE - Will recreate if collection exists")
+        print("🔄 CREATE MODE - Will create new collection")
 
     if args.dry_run:
         print("🔍 DRY RUN MODE - No upload to Qdrant")

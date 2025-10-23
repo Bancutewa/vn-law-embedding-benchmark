@@ -1,8 +1,54 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Standalone script để chunk tất cả văn bản luật thành chunks
-Tương tự như find_law_files.py nhưng cho việc chunking
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    VIETNAMESE LAW CHUNKING - CLI TOOL                        ║
+║                           (Batch Processing)                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 MỤC ĐÍCH:
+   Command-line tool để chunk NHIỀU văn bản luật theo batch, với tùy chọn AI review.
+
+📁 QUAN HỆ VỚI CÁC FILE KHÁC:
+   • Import từ: modules/chunking.py (core logic)
+   • Được gọi bởi: Terminal/Command line
+   • File liên quan: chunk_and_save.py (chunk 1 file), find_law_files.py (tìm files)
+
+🔧 CHỨC NĂNG CHÍNH:
+   1. chunk_all_law_documents() - Chunk batch nhiều files từ law_file_paths.json
+   2. main() - Parse CLI arguments, gọi AI review (optional)
+   3. build_review_payload() - Chuẩn bị data cho Gemini AI review
+   4. call_gemini_review() - Gọi Gemini API để kiểm tra chất lượng chunks
+
+📊 WORKFLOW:
+   1. Load law_file_paths.json (từ find_law_files.py)
+   2. For each file:
+      - Read docx → chunk_law_document() → chunks + stats
+      - Collect: articles, clauses, points, chapters, citations
+   3. (Optional) AI Review với Gemini
+   4. Save chunks → JSON file
+
+💻 USAGE:
+   # Chunk toàn bộ (all categories)
+   python chunking.py
+   
+   # Chunk theo category cụ thể
+   python chunking.py --category BDS
+   
+   # Chunk 1 file với AI review
+   python chunking.py --file path/to/file.docx --AI --verbose
+   
+   # Chunk + AI review + strict mode (chỉ save nếu AI confirm OK)
+   python chunking.py --category QDS --AI --strict-ok-only
+
+📦 OUTPUT:
+   • JSON file: data/[prefix]_chunk_HHMMSS_DDMMYY.json
+   • Issues file: data/[prefix]_chunk_HHMMSS_DDMMYY.issues.json (nếu có lỗi)
+
+🔗 LINK:
+   → Core logic: modules/chunking.py
+   → Single file: chunk_and_save.py
+   → Find files: find_law_files.py
 """
 
 import os
@@ -313,6 +359,8 @@ def chunk_all_law_documents(law_file_paths, law_no="", issued_date="", effective
     clauses_count = 0
     points_count = 0
 
+
+    # Loop through all law file paths
     for i, file_info in enumerate(law_file_paths):
         file_path = file_info['path']
         category = file_info['category']

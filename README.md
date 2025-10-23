@@ -12,15 +12,23 @@ Dự án đánh giá và so sánh các mô hình embedding cho văn bản luật
 - ✅ **Top queries analysis** với full content
 - ✅ **Workflow hoàn chỉnh**: Chunk → Embed → Evaluate → Report
 
-### **📤 EMBED & UPLOAD (Nhúng và Tải lên)**
+### **📤 CHUNKING & UPLOAD (Chunk và Tải lên)**
 
-**Script chính:** `embed_and_upload.py` - Công cụ embed/upload linh hoạt
+**Workflow đơn giản 3 bước:**
 
-- ✅ **Embed một model** duy nhất tại một thời điểm
-- ✅ **Upload lên Qdrant** theo category cụ thể
-- ✅ **Kiểm soát chi tiết** quá trình embedding
-- ✅ **Dry-run mode** để test
-- ✅ **Flexible workflow**: Tái sử dụng cho nhiều model/category
+1. **`chunk_and_save.py`** - Chunk 1 hoặc nhiều files
+
+   - Config sẵn `DEFAULT_FILES` trong code
+   - Output: `data/{CATEGORY}/*.json`
+
+2. **`merge_chunks.py`** - Merge tất cả chunks
+
+   - Config sẵn `DEFAULT_DIRECTORY` trong code
+   - Output: `data/{CATEGORY}_merged_*.json`
+
+3. **`embed_and_upload.py`** - Upload lên Qdrant
+   - Config sẵn `--chunk-file` trong code
+   - Output: Qdrant collection
 
 ## 📋 Tổng quan Dataset & Models
 
@@ -100,40 +108,40 @@ python chunking.py
 # Output: data/BDS_chunk_TIMESTAMP.json, data/QDS_chunk_TIMESTAMP.json, v.v.
 ```
 
-#### **Cách 2: Sử dụng chunk_and_save.py (dễ dàng tùy chỉnh - khuyến nghị)**
+#### **Cách 2: Sử dụng chunk_and_save.py (KHUYẾN NGHỊ) ⭐**
 
-**Script chính:** `chunk_and_save.py` - Công cụ chunking dễ sử dụng với cấu hình trực tiếp
+**Config trong code - Chunk 1 hoặc nhiều files:**
 
-```bash
-# Chỉnh sửa các tham số trong file chunk_and_save.py:
-# - --file: Đường dẫn file input
-# - --law-no: Số hiệu luật
-# - --law-title: Tên luật
-# - --law-id: ID luật
-# - --issued-date: Ngày ban hành
-# - --effective-date: Ngày có hiệu lực
-# - --signer: Người ký
+**Bước 1: Mở `chunk_and_save.py` và config:**
 
-# Chạy chunking với dry-run để test
-python chunk_and_save.py --dry-run --verbose
+```python
+# Dòng 38-40: Config files cần chunk
+DEFAULT_FILES = [
+    "law_content/Bất động sản/Luật 1.docx",
+    "law_content/Bất động sản/Luật 2.docx",
+    "law_content/Bất động sản/Luật 3.docx",
+]
 
-# Chạy thực tế và lưu file
-python chunk_and_save.py --verbose
+# Dòng 128: Config category
+--category = "BDS"
 
-# Lưu với tên tùy chỉnh
-python chunk_and_save.py --output-name "my_custom_chunks" --verbose
-
-# Validate chunks sau khi tạo
-python chunk_and_save.py --validate --verbose
+# Dòng 135-143: Config metadata (law_no, law_title, issued_date, ...)
 ```
 
-**Ưu điểm của chunk_and_save.py:**
+**Bước 2: Chạy:**
 
-- ✅ **Dễ cấu hình**: Chỉnh sửa trực tiếp trong code thay vì gõ lệnh dài
-- ✅ **Metadata đầy đủ**: Cấu hình sẵn các thông tin luật pháp
-- ✅ **Tự động naming**: Tạo tên file thông minh
-- ✅ **Safe encoding**: Xử lý ký tự tiếng Việt trên Windows
-- ✅ **Next steps**: Hiển thị hướng dẫn tiếp theo tự động
+```bash
+python chunk_and_save.py
+# Output: data/BDS/Luat_1_chunk_*.json, Luat_2_chunk_*.json, ...
+```
+
+**Ưu điểm:**
+
+- ✅ **Config sẵn trong code**: Không cần gõ command dài
+- ✅ **Chunk nhiều files**: Chỉ cần 1 lệnh
+- ✅ **Auto subfolder**: Tự động tạo `data/{CATEGORY}/`
+- ✅ **Metadata đầy đủ**: Config sẵn thông tin luật
+- ✅ **AI Review optional**: Thêm `--AI --verbose`
 
 **Tùy chọn AI Review:**
 
@@ -150,6 +158,33 @@ python chunk_and_save.py --AI --strict-ok-only --verbose
 # AI review với API key tùy chỉnh
 python chunk_and_save.py --AI --api-key "your_gemini_api_key" --verbose
 ```
+
+#### **Bước 2.3: Merge Chunks (KHUYẾN NGHỊ trước khi upload)**
+
+**Config trong code - Merge tất cả chunks:**
+
+**Mở `merge_chunks.py` và config:**
+
+```python
+# Dòng 40-42: Config directory chứa chunks
+DEFAULT_DIRECTORY = "data/BDS"
+DEFAULT_CATEGORY = "BDS"
+DEFAULT_PATTERN = "*_chunk_*.json"
+```
+
+**Chạy:**
+
+```bash
+python merge_chunks.py
+# Output: data/BDS_merged_chunk_HHMMSS_DDMMYY.json
+```
+
+**Ưu điểm:**
+
+- ✅ **Dễ quản lý**: 1 file thay vì nhiều files
+- ✅ **Upload 1 lần**: Nhanh hơn upload nhiều lần
+- ✅ **Remove duplicates**: Tự động loại bỏ chunks trùng
+- ✅ **Config sẵn**: Không cần gõ command dài
 
 #### **2.2 Benchmark Evaluation**
 
@@ -174,95 +209,89 @@ python main_refactored.py
 
 ### **Khi nào dùng:**
 
-- Muốn **kiểm soát chi tiết** quá trình embed
+- Sau khi đã **chunk và merge** chunks
+- Muốn **upload lên Qdrant** để sử dụng
 - **Test model mới** trước khi đánh giá
-- **Upload thêm data** mà không cần evaluation
-- **Debug** quá trình embedding
-- **Xử lý từng category** riêng biệt
+- **Thêm data mới** vào collection đã có
 
-### **Workflow linh hoạt:**
+### **Workflow đơn giản:**
 
-```bash
-# Ví dụ: Embed model minhquan6203 cho category BDS
-python embed_and_upload.py \
-  --chunk-file "data/BDS_chunk_155638_250925.json" \
-  --model "minhquan6203/paraphrase-vietnamese-law" \
-  --category BDS
+**Bước 1: Config trong `embed_and_upload.py`:**
 
-# Collection name sẽ là: minhquan6203-paraphrase-vietnamese-law-BDS
+```python
+# Dòng 74: Config file merged
+--chunk-file = "data/BDS_merged_chunk_162134_141025.json"
+
+# Dòng 81: Config model embedding
+--model = "minhquan6203/paraphrase-vietnamese-law"
+
+# Dòng 88: Config category
+--category = "BDS"
 ```
 
-### **Các tùy chọn quan trọng:**
-
-#### **Chunking với Metadata đầy đủ**
+**Bước 2: Chạy:**
 
 ```bash
-# Chunk với thông tin luật pháp đầy đủ
-python chunking.py --file "luat.docx" \
-  --law-no "52/2014/QH13" \
-  --issued-date "2014-06-19" \
-  --effective-date "2014-06-19" \
-  --signer "Chủ tịch Quốc hội Nguyễn Sinh Hùng"
+python embed_and_upload.py
+# Collection name: paraphrase-vietnamese-law-BDS
 ```
 
-#### **Dry Run (Test mode)**
+### **Workflow hoàn chỉnh từ đầu đến cuối:**
 
 ```bash
-# Test mà không upload lên Qdrant
-python embed_and_upload.py --dry-run --chunk-file "data/test.json"
+# BƯỚC 1: Config và chunk
+# Sửa DEFAULT_FILES trong chunk_and_save.py
+python chunk_and_save.py
+
+# BƯỚC 2: Config và merge
+# Sửa DEFAULT_DIRECTORY trong merge_chunks.py
+python merge_chunks.py
+
+# BƯỚC 3: Config và upload
+# Sửa --chunk-file, --model, --category trong embed_and_upload.py
+python embed_and_upload.py
 ```
 
-#### **Force Recreate Collection**
-
-```bash
-# Recreate collection nếu đã tồn tại
-python embed_and_upload.py --force-recreate --model "model_name" --category BDS
-```
-
-#### **Batch Size Control**
-
-```bash
-# Tối ưu memory với batch size nhỏ hơn
-python embed_and_upload.py --batch-size 8 --model "model_name" --category BDS
-```
+### **Tùy chọn nâng cao:**
 
 #### **Append Mode (Thêm vào collection đã có)**
 
 ```bash
 # Upload lần đầu (tạo collection mới)
-python embed_and_upload.py --chunk-file "data/BDS_chunk.json" --category BDS
+python embed_and_upload.py
+# Collection: paraphrase-vietnamese-law-BDS (mới)
 
-# Append thêm data vào collection đã có (KHÔNG xóa data cũ)
-python embed_and_upload.py --chunk-file "data/more_BDS_chunks.json" --category BDS --append
-
-# Force recreate (xóa toàn bộ data cũ và tạo lại)
-python embed_and_upload.py --chunk-file "data/BDS_chunk.json" --category BDS --force-recreate
+# Thêm data mới (tự động APPEND - không xóa data cũ)
+python embed_and_upload.py --chunk-file "data/BDS_merged_new.json"
+# Collection: paraphrase-vietnamese-law-BDS (append thêm)
 ```
 
-**📋 Giải thích các mode:**
+#### **Force Recreate (XÓA data cũ)**
 
-| Mode                   | Mô tả                                      | Khi nào dùng     |
-| ---------------------- | ------------------------------------------ | ---------------- |
-| **Default**            | Tự động recreate nếu collection đã tồn tại | Upload lần đầu   |
-| **`--append`**         | Thêm vào collection đã có (không xóa)      | Upload thêm data |
-| **`--force-recreate`** | Luôn xóa và tạo lại collection             | Reset hoàn toàn  |
+```bash
+# Xóa toàn bộ data cũ và tạo lại
+python embed_and_upload.py --force-recreate
+```
 
-**⚠️ Lưu ý với `--append`:**
+#### **Dry Run & Options**
 
-- Vector size phải khớp với collection hiện tại
-- Có thể append nhiều file chunks khác nhau vào cùng collection
-- Không thể dùng cùng lúc với `--force-recreate`
+```bash
+# Test không upload
+python embed_and_upload.py --dry-run
 
-### **So sánh với Luồng 1:**
+# Batch size nhỏ hơn (tiết kiệm memory)
+python embed_and_upload.py --batch-size 8
 
-| Tính năng     | Luồng 1 (Benchmark)               | Luồng 2 (Embed&Upload)      |
-| ------------- | --------------------------------- | --------------------------- |
-| **Số models** | 4 models cùng lúc                 | 1 model tại 1 thời điểm     |
-| **Workflow**  | Chunk → Embed → Evaluate → Report | Chỉ Embed → Upload          |
-| **Output**    | Báo cáo so sánh + ranking         | Chỉ upload lên Qdrant       |
-| **Control**   | Tự động workflow                  | Kiểm soát chi tiết          |
-| **Use case**  | Production evaluation             | Testing, debugging, modular |
-| **Script**    | `main_refactored.py`              | `embed_and_upload.py`       |
+# Dùng CPU thay vì GPU
+python embed_and_upload.py --device cpu
+```
+
+**📋 Upload Modes:**
+
+| Mode                   | Mô tả                           | Khi nào dùng        |
+| ---------------------- | ------------------------------- | ------------------- |
+| **Default (Append)**   | Thêm vào collection (không xóa) | Upload thêm data ✅ |
+| **`--force-recreate`** | XÓA data cũ và tạo lại ⚠️       | Làm lại từ đầu      |
 
 ## 📊 Output Format & Results
 
@@ -403,22 +432,31 @@ pip install -r requirements.txt
 #### **Luồng Benchmark (Khuyến nghị)**
 
 ```bash
-# Workflow hoàn chỉnh
+# Workflow đánh giá model
 python find_law_files.py                    # Tìm files luật
 python find_question_files.py              # Trích xuất questions
-python chunk_and_save.py --verbose         # Chunk file đơn lẻ (dễ cấu hình)
+python chunking.py --category BDS          # Chunk theo batch
 python main_refactored.py                  # Benchmark evaluation
 ```
 
-#### **Luồng Modular (Flexible)**
+#### **Luồng Chunking & Upload (Đơn giản) ⭐**
 
 ```bash
-# Test từng phần
-python chunk_and_save.py --dry-run --verbose    # Test chunking
-python chunk_and_save.py --validate --verbose   # Chunk + validate
-python embed_and_upload.py --model "minhquan6203/paraphrase-vietnamese-law" --category BDS
-python embed_and_upload.py --model "sentence-transformers/paraphrase-multilingual-mpnet-base-v2" --category BDS
+# Bước 1: Config DEFAULT_FILES trong chunk_and_save.py → Chạy
+python chunk_and_save.py
+
+# Bước 2: Config DEFAULT_DIRECTORY trong merge_chunks.py → Chạy
+python merge_chunks.py
+
+# Bước 3: Config trong embed_and_upload.py → Chạy
+python embed_and_upload.py
 ```
+
+**Output:**
+
+- `data/{CATEGORY}/*.json` → Chunk files
+- `data/{CATEGORY}_merged_*.json` → Merged file
+- Qdrant collection: `{model}-{category}`
 
 ---
 
@@ -461,6 +499,10 @@ python test_single_file_chunking.py
 ```
 vn-law-embedding-benchmark/
 ├── 📂 data/                          # Chunks đã xử lý
+│   ├── BDS/                          # Category folder
+│   │   ├── Luat_1_chunk_*.json      # Chunk individual
+│   │   └── Luat_2_chunk_*.json
+│   └── BDS_merged_chunk_*.json      # Merged file
 ├── 📂 data_files/                    # Metadata files
 │   ├── law_file_paths.json          # Danh sách files luật
 │   ├── law_questions.json           # 511 câu hỏi benchmark
@@ -472,10 +514,11 @@ vn-law-embedding-benchmark/
 │   ├── evaluation.py                # Evaluation logic
 │   └── qdrant_manager.py            # Qdrant operations
 ├── 📂 utilities/                     # Helper scripts
-├── 🔬 main_refactored.py            # Luồng Benchmark
-├── 📤 embed_and_upload.py           # Luồng Embed&Upload
-├── 🧩 chunking.py                   # Script chunking (batch)
-├── 🧩 chunk_and_save.py             # Script chunking (single file - khuyến nghị)
+├── 🔬 main_refactored.py            # Benchmark evaluation
+├── 🧩 chunking.py                   # Batch chunking
+├── 📝 chunk_and_save.py             # BƯỚC 1: Chunk files ⭐
+├── 🔄 merge_chunks.py               # BƯỚC 2: Merge chunks ⭐
+├── 📤 embed_and_upload.py           # BƯỚC 3: Upload to Qdrant ⭐
 └── 📋 README.md                     # Documentation
 ```
 
@@ -537,41 +580,45 @@ Script tự động tạo ID pháp luật thông minh:
 
 ### **Embedding và Upload lên Qdrant**
 
-Sau khi có file chunks, embed và upload lên Qdrant:
+**Workflow đơn giản:**
 
 ```bash
-# Embed BDS chunks với model minhquan6203
-python embed_and_upload.py \
-  --chunk-file "data/BDS_chunk_155638_250925.json" \
-  --model "minhquan6203/paraphrase-vietnamese-law" \
-  --category "BDS"
+# 1. Config trong embed_and_upload.py (dòng 74, 81, 88)
+--chunk-file = "data/BDS_merged_chunk_162134_141025.json"
+--model = "minhquan6203/paraphrase-vietnamese-law"
+--category = "BDS"
 
-# Embed QDS chunks với model khác
-python embed_and_upload.py \
-  --chunk-file "data/QDS_chunk_151649_250925.json" \
-  --model "sentence-transformers/paraphrase-multilingual-mpnet-base-v2" \
-  --category "QDS"
-
-# Embed TM chunks (dry run để test)
-python embed_and_upload.py \
-  --chunk-file "data/TM_chunk_154949_250925.json" \
-  --model "namnguyenba2003/Vietnamese_Law_Embedding_finetuned_v3_256dims" \
-  --category "TM" \
-  --dry-run
+# 2. Chạy
+python embed_and_upload.py
+# → Collection: paraphrase-vietnamese-law-BDS
 ```
 
-### **Cấu hình script embed_and_upload.py:**
+**Thêm data mới (Append mode):**
 
-#### **Collection naming:**
+```bash
+# Upload thêm data vào collection đã có (không xóa cũ)
+python embed_and_upload.py --chunk-file "data/BDS_merged_new.json"
+```
 
-- Format: `model-name-category`
-- Ví dụ: `minhquan6203-paraphrase-vietnamese-law-BDS`
+**Làm lại từ đầu (Force recreate):**
+
+```bash
+# Xóa data cũ và tạo lại
+python embed_and_upload.py --force-recreate
+```
+
+### **Collection Naming:**
+
+- Format: `{model-name}-{category}`
+- Ví dụ: `paraphrase-vietnamese-law-BDS`
 - Tự động clean special characters
 
-#### **Models hỗ trợ:**
+### **Models hỗ trợ:**
 
-- **Transformers**: `minhquan6203/paraphrase-vietnamese-law`, `namnguyenba2003/...`
-- **Sentence Transformers**: `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
+- `minhquan6203/paraphrase-vietnamese-law` ⭐
+- `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`
+- `namnguyenba2003/Vietnamese_Law_Embedding_finetuned_v3_256dims`
+- `truro7/vn-law-embedding`
 
 ---
 
